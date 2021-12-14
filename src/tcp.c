@@ -45,7 +45,7 @@ socket_t tcp_connect_socket(const addr_record_t *remote_addr, timestamp_t end_ti
 #ifdef __APPLE__
 	// MacOS lacks MSG_NOSIGNAL and requires SO_NOSIGPIPE instead
 	int opt = 1;
-	if (setsockopt(mSock, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt))) {
+	if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt))) {
 		PLUM_LOG_ERROR("Failed to disable SIGPIPE for socket");
 		goto error;
 	}
@@ -136,7 +136,12 @@ int tcp_recv(socket_t sock, char *buffer, size_t size, timestamp_t end_timestamp
 		}
 
 		if (pfd.revents & POLLIN) {
-			int len = recv(pfd.fd, buffer, size, MSG_NOSIGNAL);
+#if defined(__APPLE__) || defined(_WIN32)
+			int flags = 0;
+#else
+			int flags = MSG_NOSIGNAL;
+#endif
+			int len = recv(pfd.fd, buffer, (int)size, flags);
 			if (len < 0) {
 				if (sockerrno == SEAGAIN || sockerrno == SEWOULDBLOCK)
 					continue;
@@ -186,7 +191,12 @@ int tcp_send(socket_t sock, const char *data, size_t size, timestamp_t end_times
 		}
 
 		if (pfd.revents & POLLOUT) {
-			int len = send(pfd.fd, data, size, MSG_NOSIGNAL);
+#if defined(__APPLE__) || defined(_WIN32)
+			int flags = 0;
+#else
+			int flags = MSG_NOSIGNAL;
+#endif
+			int len = send(pfd.fd, data, (int)size, flags);
 			if (len < 0) {
 				if (sockerrno == SEAGAIN || sockerrno == SEWOULDBLOCK)
 					continue;

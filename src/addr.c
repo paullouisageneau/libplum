@@ -319,7 +319,7 @@ int addr_set(int family, const char *host, uint16_t port, addr_record_t *record)
 		}
 
 		memcpy(&record->addr, ai->ai_addr, ai->ai_addrlen);
-		record->len = ai->ai_addrlen;
+		record->len = (socklen_t)ai->ai_addrlen;
 		freeaddrinfo(ai_list);
 		break;
 	}

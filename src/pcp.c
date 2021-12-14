@@ -450,7 +450,7 @@ int pcp_impl_process_mcast_response(pcp_impl_t *impl, const char *buffer, int le
 
 int pcp_impl_check_epoch_time(pcp_impl_t *impl, uint32_t curr_server_time) {
 	PLUM_LOG_VERBOSE("PCP server epoch time is %u", (unsigned int)curr_server_time);
-	uint32_t curr_client_time = current_timestamp() / 1000; // seconds
+	uint32_t curr_client_time = (uint32_t)(current_timestamp() / 1000); // seconds
 
 	// RFC 6887: Whenever a client receives a PCP response, the client validates the received Epoch
 	// Time value according to the procedure below, using integer arithmetic:

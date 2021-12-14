@@ -33,10 +33,10 @@
 int http_perform(const http_request_t *request, http_response_t *response,
                  timestamp_t end_timestamp) {
 	const char *scheme = "http://";
-	const int scheme_len = strlen(scheme);
+	const size_t scheme_len = strlen(scheme);
 
 	const char *url = request->url;
-	const int url_len = strlen(url);
+	const size_t url_len = strlen(url);
 	if (strncmp(url, scheme, scheme_len) != 0) {
 		PLUM_LOG_WARN("HTTP request URL is invalid: %s", request->url);
 		return -1;

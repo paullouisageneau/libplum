@@ -21,10 +21,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <unistd.h>
+#ifdef _WIN32
+#include <windows.h>
+static void sleep(unsigned int secs) { Sleep(secs * 1000); }
+#else
+#include <unistd.h> // for sleep
+#endif
 
 static void mapping_callback(int id, plum_state_t state, const plum_mapping_t *mapping) {
-	printf("Mapping callback: %hu -> %s:%hu state=%d\n", mapping->internal_port, mapping->external_host, mapping->external_port, (int)state);
+	printf("Mapping callback: %hu -> %s:%hu state=%d\n", mapping->internal_port,
+	       mapping->external_host, mapping->external_port, (int)state);
 }
 
 int main(int argc, char **argv) {
@@ -47,4 +53,3 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
-
