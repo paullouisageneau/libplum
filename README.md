@@ -1,5 +1,7 @@
 # libplum - Multi-protocol Port Mapping client library
 
+[![Build](https://github.com/paullouisageneau/libplum/actions/workflows/build.yml/badge.svg)](https://github.com/paullouisageneau/libplum/actions/workflows/build.yml)
+
 libplum (_Port Lightweight and Universal Mapping_) is a library allowing to forward ports on Network Address Translators (NAT). It is written in C without dependencies and supports POSIX platforms (including GNU/Linux, Android, Apple macOS and iOS) and Microsoft Windows.
 
 Under the hood, it implements multiple protocols and automatically detects which one to use:
