@@ -141,11 +141,26 @@ int pcp_map(protocol_state_t *state, const client_mapping_t *mapping, protocol_m
 
 		int err;
 		if (impl->use_natpmp) {
+			// RFC 6886: The RECOMMENDED Port Mapping Lifetime is 7200 seconds (two hours).
+			const uint32_t lifetime = 7200; // seconds
+
 			PLUM_LOG_DEBUG("Mapping with NAT-PMP...");
-			err = natpmp_impl_map(impl, mapping, output, &state->gateway, map_end_timestamp);
+			err = natpmp_impl_map(impl, mapping, output, lifetime, &state->gateway,
+			                      map_end_timestamp);
 		} else {
+			// RFC 6887: The PCP client requests a certain lifetime, and the PCP server responds
+			// with the assigned lifetime. The PCP server MAY grant a lifetime smaller or larger
+			// than the requested lifetime. The PCP server SHOULD be configurable for permitted
+			// minimum and maximum lifetime, and the minimum value SHOULD be 120 seconds. The
+			// maximum value SHOULD be the remaining lifetime of the IP address assigned to the PCP
+			// client if that information is available (e.g., from the DHCP server), or half the
+			// lifetime of IP address assignments on that network if the remaining lifetime is not
+			// available, or 24 hours. RFC 6886: The RECOMMENDED Port Mapping Lifetime is 7200
+			// seconds (two hours).
+			const uint32_t lifetime = 7200; // seconds
+
 			PLUM_LOG_DEBUG("Mapping with PCP...");
-			err = pcp_impl_map(impl, mapping, output, &state->gateway, map_end_timestamp);
+			err = pcp_impl_map(impl, mapping, output, lifetime, &state->gateway, map_end_timestamp);
 		}
 
 		if (err == PROTOCOL_ERR_SUCCESS) {
@@ -157,9 +172,48 @@ int pcp_map(protocol_state_t *state, const client_mapping_t *mapping, protocol_m
 			return PROTOCOL_ERR_SUCCESS;
 		}
 
-		if(err == PROTOCOL_ERR_UNSUPP_VERSION && !impl->use_natpmp) {
-			impl->use_natpmp = true;
-			continue;
+		if (err != PROTOCOL_ERR_TIMEOUT)
+			return err;
+
+		map_duration *= 2;
+	} while (++map_count < 9 && current_timestamp() < end_timestamp);
+
+	return PROTOCOL_ERR_TIMEOUT;
+}
+
+int pcp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timediff_t duration) {
+	pcp_impl_t *impl = state->impl;
+	timestamp_t end_timestamp = current_timestamp() + duration;
+
+	const uint32_t lifetime = 0;  // We want to unmap
+	protocol_map_output_t output; // dummy
+	memset(&output, 0, sizeof(output));
+
+	int map_count = 0;
+	timediff_t map_duration = 250;
+	do {
+		timestamp_t map_end_timestamp = current_timestamp() + map_duration;
+		if (map_end_timestamp > end_timestamp)
+			map_end_timestamp = end_timestamp;
+
+		int err;
+		if (impl->use_natpmp) {
+			PLUM_LOG_DEBUG("Unmapping with NAT-PMP...");
+			err = natpmp_impl_map(impl, mapping, &output, lifetime, &state->gateway,
+			                      map_end_timestamp);
+		} else {
+			PLUM_LOG_DEBUG("Unmapping with PCP...");
+			err =
+			    pcp_impl_map(impl, mapping, &output, lifetime, &state->gateway, map_end_timestamp);
+		}
+
+		if (err == PROTOCOL_ERR_SUCCESS) {
+			if (impl->use_natpmp)
+				PLUM_LOG_DEBUG("Success unmapping with NAT-PMP");
+			else
+				PLUM_LOG_DEBUG("Success unmapping with PCP");
+
+			return PROTOCOL_ERR_SUCCESS;
 		}
 
 		if (err != PROTOCOL_ERR_TIMEOUT)
@@ -270,6 +324,11 @@ int pcp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t e
 			continue;
 		}
 
+		if (len < (int)sizeof(struct pcp_response_header)) {
+			PLUM_LOG_WARN("Announce response of length %d is too short", len);
+			continue;
+		}
+
 		uint8_t result = common_header->result;
 		if (result != PCP_RESULT_SUCCESS) {
 			PLUM_LOG_WARN("Got PCP error response, result=%u", (unsigned int)result);
@@ -280,10 +339,6 @@ int pcp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t e
 				return PROTOCOL_ERR_PROTOCOL_FAILED; // TODO
 		}
 
-		if (len < (int)sizeof(struct pcp_response_header)) {
-			PLUM_LOG_WARN("Announce response of length %d is too short", len);
-			continue;
-		}
 		const struct pcp_response_header *header = (const struct pcp_response_header *)buffer;
 		uint32_t epoch_time = ntohl(header->epoch_time);
 		int err = pcp_impl_check_epoch_time(impl, epoch_time);
@@ -301,16 +356,7 @@ int pcp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t e
 }
 
 int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map_output_t *output,
-                 const addr_record_t *gateway, timestamp_t end_timestamp) {
-	// RFC 6887: The PCP client requests a certain lifetime, and the PCP server responds with the
-	// assigned lifetime. The PCP server MAY grant a lifetime smaller or larger than the requested
-	// lifetime. The PCP server SHOULD be configurable for permitted minimum and maximum lifetime,
-	// and the minimum value SHOULD be 120 seconds. The maximum value SHOULD be the remaining
-	// lifetime of the IP address assigned to the PCP client if that information is available (e.g.,
-	// from the DHCP server), or half the lifetime of IP address assignments on that network if the
-	// remaining lifetime is not available, or 24 hours.
-	uint32_t lifetime = 7200; // seconds
-
+                 uint32_t lifetime, const addr_record_t *gateway, timestamp_t end_timestamp) {
 	char buffer[PCP_MAX_PAYLOAD_LENGTH];
 	if (write_pcp_header((struct pcp_request_header *)buffer, PCP_OPCODE_MAP, lifetime)) {
 		PLUM_LOG_ERROR("Unable to write PCP header");
@@ -318,7 +364,10 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 	}
 
 	char nonce[PCP_MAP_NONCE_SIZE];
-	plum_random(nonce, PCP_MAP_NONCE_SIZE);
+	if(mapping->impl_record)
+		memcpy(nonce, mapping->impl_record, PCP_MAP_NONCE_SIZE);
+	else
+		plum_random(nonce, PCP_MAP_NONCE_SIZE);
 
 	pcp_protocol_t protocol;
 	switch (mapping->protocol) {
@@ -340,26 +389,27 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 	map->protocol = protocol;
 	map->internal_port = htons(mapping->internal_port);
 
-	addr_record_t suggested = mapping->suggested_addr;
+	addr_record_t external =
+	    mapping->external_addr.len > 0 ? mapping->external_addr : mapping->suggested_addr;
 
 	// RFC 6887: If the PCP client does not know the external address, or does not have a
 	// preference, it MUST use the address-family-specific all-zeros address
-	if (suggested.len == 0)
-		addr_set(AF_INET, "0.0.0.0", 0, &suggested);
+	if (external.len == 0)
+		addr_set(AF_INET, "0.0.0.0", 0, &external);
 
-	// RFC 6887: When the address field holds an IPv4 address, an IPv4-mapped IPv6 address
-	// [RFC4291] is used.
-	addr_map_inet6_v4mapped(&suggested.addr, &suggested.len);
-	struct sockaddr_in6 *suggested_sin6 = (struct sockaddr_in6 *)&suggested.addr;
-	map->suggested_external_port = suggested_sin6->sin6_port; // network byte-order
-	memcpy(map->suggested_external_addr, &suggested_sin6->sin6_addr, 16);
+	// RFC 6887: When the address field holds an IPv4 address, an IPv4-mapped IPv6 address [RFC4291]
+	// is used.
+	addr_map_inet6_v4mapped(&external.addr, &external.len);
+	struct sockaddr_in6 *external_sin6 = (struct sockaddr_in6 *)&external.addr;
+	map->suggested_external_port = external_sin6->sin6_port; // network byte-order
+	memcpy(map->suggested_external_addr, &external_sin6->sin6_addr, 16);
 
 	PLUM_LOG_DEBUG("Sending PCP map request");
 	if (udp_sendto(impl->sock, buffer,
 	               sizeof(struct pcp_request_header) + sizeof(struct pcp_map_request),
 	               gateway) < 0) {
 		PLUM_LOG_ERROR("UDP send failed, errno=%d", sockerrno);
-		return -1;
+		return PROTOCOL_ERR_NETWORK_FAILED;
 	}
 
 	PLUM_LOG_DEBUG("Waiting for PCP map response...");
@@ -376,15 +426,6 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 			continue;
 		}
 
-		uint32_t epoch_time = ntohl(header->epoch_time);
-		int err = pcp_impl_check_epoch_time(impl, epoch_time);
-		if (err == PROTOCOL_ERR_RESET)
-			return err;
-
-		if (header->result != PCP_RESULT_SUCCESS) {
-			PLUM_LOG_WARN("Got PCP error response, result=%d", (int)header->result);
-			continue;
-		}
 		if (len < (int)(sizeof(struct pcp_response_header) + sizeof(struct pcp_map_response))) {
 			PLUM_LOG_WARN("Mapping success response of length=%d is too short", len);
 			continue;
@@ -393,8 +434,18 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 		const struct pcp_map_response *map =
 		    (const struct pcp_map_response *)(buffer + sizeof(struct pcp_response_header));
 		if (memcmp(map->nonce, nonce, PCP_MAP_NONCE_SIZE) != 0) {
-			PLUM_LOG_WARN("Got incorrect nonce in map response");
-			return PROTOCOL_ERR_UNKNOWN;
+			PLUM_LOG_DEBUG("Unexpected nonce in map response, ignoring");
+			continue;
+		}
+
+		uint32_t epoch_time = ntohl(header->epoch_time);
+		int err = pcp_impl_check_epoch_time(impl, epoch_time);
+		if (err == PROTOCOL_ERR_RESET)
+			return err;
+
+		if (header->result != PCP_RESULT_SUCCESS) {
+			PLUM_LOG_WARN("Got PCP error response, result=%d", (int)header->result);
+			return PROTOCOL_ERR_PROTOCOL_FAILED;
 		}
 
 		uint32_t response_lifetime = ntohl(header->lifetime);
@@ -406,12 +457,16 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 		// RFC 6887: The PCP client SHOULD renew the mapping before its expiry time; otherwise, it
 		// will be removed by the PCP server. To reduce the risk of inadvertent synchronization of
 		// renewal requests, a random jitter component should be included.
-		uint32_t r;
-		plum_random(&r, sizeof(r));
-		timediff_t expiry_delay = (timediff_t)lifetime * 1000;
-		timediff_t refresh_delay = expiry_delay / 2 + r % (expiry_delay / 4);
-		PLUM_LOG_VERBOSE("Renewing mapping in %us", (unsigned int)(refresh_delay / 1000));
-		output->refresh_timestamp = current_timestamp() + refresh_delay;
+		if (response_lifetime > 0) {
+			uint32_t r;
+			plum_random(&r, sizeof(r));
+			timediff_t expiry_delay = (timediff_t)response_lifetime * 1000;
+			timediff_t refresh_delay = expiry_delay / 2 + r % (expiry_delay / 4);
+			PLUM_LOG_VERBOSE("Renewing mapping in %us", (unsigned int)(refresh_delay / 1000));
+			output->refresh_timestamp = current_timestamp() + refresh_delay;
+		} else {
+			output->refresh_timestamp = 0;
+		}
 
 		struct sockaddr_in6 *external_sin6 = (struct sockaddr_in6 *)&impl->external_addr.addr;
 		memset(external_sin6, 0, sizeof(*external_sin6));
@@ -422,6 +477,17 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 		addr_unmap_inet6_v4mapped((struct sockaddr *)&impl->external_addr.addr,
 		                          &impl->external_addr.len);
 		output->external_addr = impl->external_addr;
+
+		output->impl_record = mapping->impl_record;
+		if(!output->impl_record) {
+			output->impl_record = malloc(PCP_MAP_NONCE_SIZE);
+			if(!output->impl_record) {
+				PLUM_LOG_ERROR("Allocation for nonce record failed");
+				return PROTOCOL_ERR_INSUFF_RESOURCES;
+			}
+		}
+		memcpy(output->impl_record, nonce, PCP_MAP_NONCE_SIZE);
+
 		return PROTOCOL_ERR_SUCCESS;
 	}
 
@@ -539,6 +605,8 @@ int pcp_natpmp_impl_wait_response(pcp_impl_t *impl, char *buffer, addr_record_t 
 				return PROTOCOL_ERR_UNKNOWN;
 			}
 		}
+
+		PLUM_LOG_VERBOSE("Exiting poll");
 
 		if (ret == 0) // timeout
 			break;

@@ -45,6 +45,7 @@ int upnp_cleanup(protocol_state_t *state);
 int upnp_discover(protocol_state_t *state, timediff_t duration);
 int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
              protocol_map_output_t *output, timediff_t duration);
+int upnp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timediff_t duration);
 int upnp_idle(protocol_state_t *state, timediff_t duration);
 int upnp_interrupt(protocol_state_t *state);
 

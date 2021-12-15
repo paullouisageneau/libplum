@@ -33,10 +33,9 @@ typedef struct {
 } natpmp_impl_t;
 
 int natpmp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t end_timestamp);
-int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map_output_t *output,
-                 const addr_record_t *gateway, timestamp_t end_timestamp);
-int natpmp_impl_map_opcode(pcp_impl_t *impl, uint8_t opcode, const client_mapping_t *mapping, protocol_map_output_t *output,
-                 const addr_record_t *gateway, timestamp_t end_timestamp);
+int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping,
+                    protocol_map_output_t *output, uint32_t lifetime, const addr_record_t *gateway,
+                    timestamp_t end_timestamp);
 int natpmp_impl_process_mcast_response(pcp_impl_t *impl, const char *buffer, int len);
 int natpmp_impl_check_epoch_time(pcp_impl_t *impl, uint32_t new_epoch_time);
 
@@ -124,7 +123,7 @@ struct natpmp_map_request {
 	uint8_t opcode;
 	uint16_t reserved;
 	uint16_t internal_port;
-	uint16_t suggested_port;
+	uint16_t suggested_external_port;
 	uint32_t lifetime;
 };
 
@@ -154,5 +153,3 @@ struct natpmp_map_response {
 #pragma pack(pop)
 
 #endif
-
-

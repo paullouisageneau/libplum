@@ -55,9 +55,11 @@ typedef enum {
 } plum_ip_protocol_t;
 
 typedef enum {
-	PLUM_STATE_PENDING = 0,
-	PLUM_STATE_SUCCESS = 1,
-	PLUM_STATE_FAILURE = 2
+	PLUM_STATE_DESTROYED = 0,
+	PLUM_STATE_PENDING = 1,
+	PLUM_STATE_SUCCESS = 2,
+	PLUM_STATE_FAILURE = 3,
+	PLUM_STATE_DESTROYING = 4
 } plum_state_t;
 
 #define PLUM_MAX_HOST_LEN 64

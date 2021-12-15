@@ -33,6 +33,7 @@ typedef struct client_mapping {
 	plum_mapping_callback_t callback;
 	plum_state_t state;
 	timestamp_t refresh_timestamp;
+	void *impl_record;
 } client_mapping_t;
 
 typedef struct {

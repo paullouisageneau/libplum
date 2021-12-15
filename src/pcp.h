@@ -49,16 +49,18 @@ int pcp_cleanup(protocol_state_t *state);
 int pcp_discover(protocol_state_t *state, timediff_t duration);
 int pcp_map(protocol_state_t *state, const client_mapping_t *mapping, protocol_map_output_t *output,
             timediff_t duration);
+int pcp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timediff_t duration);
 int pcp_idle(protocol_state_t *state, timediff_t duration);
 int pcp_interrupt(protocol_state_t *state);
 
 int pcp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t end_timestamp);
 int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map_output_t *output,
-                 const addr_record_t *gateway, timestamp_t end_timestamp);
+                 uint32_t lifetime, const addr_record_t *gateway, timestamp_t end_timestamp);
 int pcp_impl_process_mcast_response(pcp_impl_t *impl, const char *buffer, int len);
 int pcp_impl_check_epoch_time(pcp_impl_t *impl, uint32_t new_epoch_time);
 
-int pcp_natpmp_impl_wait_response(pcp_impl_t *impl, char *buffer, addr_record_t *src, timestamp_t end_timestamp);
+int pcp_natpmp_impl_wait_response(pcp_impl_t *impl, char *buffer, addr_record_t *src,
+                                  timestamp_t end_timestamp);
 
 #pragma pack(push, 1)
 

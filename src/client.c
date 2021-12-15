@@ -29,8 +29,8 @@
 #define PROTOCOL_UPNP 1
 #define PROTOCOLS_COUNT 2
 static const protocol_t protocols[PROTOCOLS_COUNT] = {
-    {pcp_init, pcp_cleanup, pcp_discover, pcp_map, pcp_idle, pcp_interrupt},
-    {upnp_init, upnp_cleanup, upnp_discover, upnp_map, upnp_idle, upnp_interrupt}};
+    {pcp_init, pcp_cleanup, pcp_discover, pcp_map, pcp_unmap, pcp_idle, pcp_interrupt},
+    {upnp_init, upnp_cleanup, upnp_discover, upnp_map, upnp_unmap, upnp_idle, upnp_interrupt}};
 
 static int find_empty_mapping_index(client_t *client) {
 	for (int i = 0; i < client->mappings_size; ++i)
@@ -154,7 +154,7 @@ int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
 int client_get_mapping(client_t *client, int i, plum_state_t *state, plum_mapping_t *mapping) {
 	mutex_lock(&client->mappings_mutex);
 
-	if (i >= client->mappings_size || client->mappings[i].internal_port == 0) {
+	if (i >= client->mappings_size || client->mappings[i].state == PLUM_STATE_DESTROYED) {
 		mutex_unlock(&client->mappings_mutex);
 		return -1;
 	}
@@ -173,14 +173,13 @@ int client_get_mapping(client_t *client, int i, plum_state_t *state, plum_mappin
 int client_remove_mapping(client_t *client, int i) {
 	mutex_lock(&client->mappings_mutex);
 
-	if (i >= client->mappings_size || client->mappings[i].internal_port == 0) {
+	if (i >= client->mappings_size || client->mappings[i].state == PLUM_STATE_DESTROYED) {
 		mutex_unlock(&client->mappings_mutex);
 		return -1;
 	}
 
 	client_mapping_t *cm = client->mappings + i;
-	if (cm)
-		memset(cm, 0, sizeof(client_mapping_t));
+	cm->state = PLUM_STATE_DESTROYING;
 
 	mutex_unlock(&client->mappings_mutex);
 
@@ -189,7 +188,7 @@ int client_remove_mapping(client_t *client, int i) {
 }
 
 static int trigger_mapping_callback(const client_mapping_t *cm, int i) {
-	if (cm->internal_port == 0)
+	if (cm->state == PLUM_STATE_DESTROYED)
 		return -1;
 
 	plum_mapping_t mapping;
@@ -198,6 +197,15 @@ static int trigger_mapping_callback(const client_mapping_t *cm, int i) {
 		cm->callback(i, cm->state, &mapping);
 
 	return 0;
+}
+
+static int change_mapping_state(client_mapping_t *cm, int i, plum_state_t state,
+                                bool external_addr_changed) {
+	if (state == cm->state && !external_addr_changed)
+		return 0;
+
+	cm->state = state;
+	return trigger_mapping_callback(cm, i);
 }
 
 void client_run(client_t *client) {
@@ -215,18 +223,20 @@ void client_run(client_t *client) {
 		if (err == PROTOCOL_ERR_RESET)
 			continue;
 
-		// Try another protocol
-		if (++protocol_num == PROTOCOLS_COUNT)
+		// Try the next protocol
+		++protocol_num;
+		if (protocol_num == PROTOCOLS_COUNT)
 			protocol_num = 0;
 
-		// Mark all mappings failed
+		// Reset all mappings failed
 		if (err != PROTOCOL_ERR_SUCCESS) {
 			for (int i = 0; i < client->mappings_size; ++i) {
 				client_mapping_t *cm = client->mappings + i;
 				if (cm->state != PLUM_STATE_FAILURE) {
 					cm->state = PLUM_STATE_FAILURE;
 					memset(&cm->external_addr, 0, sizeof(cm->external_addr));
-
+					free(cm->impl_record);
+					cm->impl_record = NULL;
 					trigger_mapping_callback(cm, i);
 				}
 			}
@@ -254,12 +264,33 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 		mutex_unlock(&client->mappings_mutex);
 		for (int i = 0; i < mappings_size; ++i) {
 			mutex_lock(&client->mappings_mutex);
-			if (client->mappings[i].internal_port == 0) {
+			if (client->mappings[i].state == PLUM_STATE_DESTROYED) {
 				mutex_unlock(&client->mappings_mutex);
 				continue;
 			}
 			client_mapping_t mapping = client->mappings[i];
 			mutex_unlock(&client->mappings_mutex);
+
+			if (mapping.state == PLUM_STATE_DESTROYING) {
+				PLUM_LOG_INFO("Performing unmapping for internal port %hu", mapping.internal_port);
+
+				const timediff_t mapping_timeout = 30 * 1000;
+				err = protocol->unmap(protocol_state, &mapping, mapping_timeout);
+
+				// Ignore errors
+				if (err == PROTOCOL_ERR_SUCCESS)
+					PLUM_LOG_INFO("Unmapped internal port %hu", mapping.internal_port);
+				else
+					PLUM_LOG_WARN("Failed to unmap internal port %hu", mapping.internal_port);
+
+				mutex_lock(&client->mappings_mutex);
+				client_mapping_t *cm = client->mappings + i;
+				change_mapping_state(cm, i, PLUM_STATE_DESTROYED, false);
+				free(cm->impl_record);
+				memset(cm, 0, sizeof(*cm));
+				mutex_unlock(&client->mappings_mutex);
+				continue;
+			}
 
 			if (mapping.refresh_timestamp <= current_timestamp()) {
 				PLUM_LOG_INFO("Performing mapping for internal port %hu", mapping.internal_port);
@@ -272,32 +303,21 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 				if (err != PROTOCOL_ERR_SUCCESS)
 					goto error;
 
-				bool changed =
-				    mapping.state != PLUM_STATE_SUCCESS ||
-				    !addr_record_is_equal(&mapping.external_addr, &output.external_addr, true);
-
 				if (PLUM_LOG_INFO_ENABLED) {
 					char external_str[ADDR_MAX_STRING_LEN];
-					addr_record_to_string(&output.external_addr, external_str,
-					                      ADDR_MAX_STRING_LEN);
-					PLUM_LOG_INFO("External address %s mapped to internal port %hu", external_str, mapping.internal_port);
+					addr_record_to_string(&output.external_addr, external_str, ADDR_MAX_STRING_LEN);
+					PLUM_LOG_INFO("External address %s mapped to internal port %hu", external_str,
+					              mapping.internal_port);
 				}
 
 				mutex_lock(&client->mappings_mutex);
-				if (client->mappings[i].internal_port != mapping.internal_port) {
-					mutex_unlock(&client->mappings_mutex);
-					continue;
-				}
-
-				mapping.state = PLUM_STATE_SUCCESS;
-				mapping.external_addr = output.external_addr;
-				mapping.refresh_timestamp = output.refresh_timestamp;
-
 				client_mapping_t *cm = client->mappings + i;
-				*cm = mapping;
-				if (changed)
-					trigger_mapping_callback(cm, i);
-
+				bool changed =
+				    !addr_record_is_equal(&cm->external_addr, &output.external_addr, true);
+				cm->external_addr = output.external_addr;
+				cm->refresh_timestamp = output.refresh_timestamp;
+				cm->impl_record = output.impl_record;
+				change_mapping_state(cm, i, PLUM_STATE_SUCCESS, changed);
 				mutex_unlock(&client->mappings_mutex);
 			}
 

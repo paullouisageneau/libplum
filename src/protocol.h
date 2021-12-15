@@ -43,6 +43,7 @@ struct client_mapping;
 typedef struct {
 	addr_record_t external_addr;
 	timestamp_t refresh_timestamp;
+	void *impl_record;
 } protocol_map_output_t;
 
 typedef struct {
@@ -51,6 +52,7 @@ typedef struct {
 	int (*discover)(protocol_state_t *state, timediff_t duration);
 	int (*map)(protocol_state_t *state, const struct client_mapping *mapping,
 	           protocol_map_output_t *output, timediff_t duration);
+	int (*unmap)(protocol_state_t *state, const struct client_mapping *mapping, timediff_t duration);
 	int (*idle)(protocol_state_t *state, timediff_t duration);
 	int (*interrupt)(protocol_state_t *state);
 } protocol_t;

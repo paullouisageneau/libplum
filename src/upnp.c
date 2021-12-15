@@ -124,7 +124,7 @@ int upnp_discover(protocol_state_t *state, timediff_t duration) {
 			return err;
 
 		probe_duration *= 2;
-	} while (++probe_count < 9 && current_timestamp() < end_timestamp);
+	} while (++probe_count < 3 && current_timestamp() < end_timestamp);
 
 	return PROTOCOL_ERR_TIMEOUT;
 }
@@ -148,13 +148,10 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 	uint16_t external_port = mapping->external_addr.len > 0
 	                             ? addr_get_port((const struct sockaddr *)&mapping->external_addr)
 	                             : 0;
-	if (external_port == 0) {
+	if (external_port == 0)
 		external_port = mapping->suggested_addr.len > 0
 		                    ? addr_get_port((const struct sockaddr *)&mapping->suggested_addr)
 		                    : 0;
-		if (external_port == 0)
-			external_port = mapping->internal_port;
-	}
 
 	int lifetime = 7200; // seconds
 
@@ -191,9 +188,23 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 		} else if (err != PROTOCOL_ERR_TIMEOUT)
 			return err;
 
-	} while (++query_count < 9 && current_timestamp() < end_timestamp);
+	} while (++query_count < 3 && current_timestamp() < end_timestamp);
 
 	return PROTOCOL_ERR_TIMEOUT;
+}
+
+int upnp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timediff_t duration) {
+	upnp_impl_t *impl = state->impl;
+	timestamp_t end_timestamp = current_timestamp() + duration;
+
+	uint16_t external_port = mapping->external_addr.len > 0
+	                             ? addr_get_port((const struct sockaddr *)&mapping->external_addr)
+	                             : 0;
+
+	if (external_port == 0)
+		return PROTOCOL_ERR_SUCCESS; // Nothing to do
+
+	return upnp_impl_unmap(impl, mapping->protocol, external_port, end_timestamp);
 }
 
 int upnp_idle(protocol_state_t *state, timediff_t duration) {
@@ -573,6 +584,8 @@ int upnp_impl_wait_response(upnp_impl_t *impl, char *buffer, size_t size, addr_r
 				return PROTOCOL_ERR_UNKNOWN;
 			}
 		}
+
+		PLUM_LOG_VERBOSE("Exiting poll");
 
 		if (ret == 0) // timeout
 			break;

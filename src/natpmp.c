@@ -80,7 +80,7 @@ int natpmp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_
 		uint16_t result = ntohs(response->result);
 		if (result != NATPMP_RESULT_SUCCESS) {
 			PLUM_LOG_WARN("Got NAT-PMP error response, result=%d", (int)result);
-			return PROTOCOL_ERR_PROTOCOL_FAILED; // TODO
+			return PROTOCOL_ERR_PROTOCOL_FAILED;
 		}
 
 		addr_set_binary(AF_INET, response->external_addr, 0, &impl->external_addr);
@@ -102,7 +102,7 @@ int natpmp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_
 }
 
 int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping,
-                    protocol_map_output_t *output, const addr_record_t *gateway,
+                    protocol_map_output_t *output, uint32_t lifetime, const addr_record_t *gateway,
                     timestamp_t end_timestamp) {
 	if (impl->external_addr.len == 0) {
 		PLUM_LOG_WARN("Attempted to map with NAT-PMP while external address is unknown");
@@ -112,9 +112,6 @@ int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping,
 	if (mapping->protocol != PLUM_IP_PROTOCOL_TCP && mapping->protocol != PLUM_IP_PROTOCOL_UDP)
 		return PROTOCOL_ERR_UNSUPP_PROTOCOL;
 
-	// RFC 6886: The RECOMMENDED Port Mapping Lifetime is 7200 seconds (two hours).
-	uint32_t lifetime = 7200; // seconds
-
 	struct natpmp_map_request request;
 	memset(&request, 0, sizeof(request));
 	request.version = NATPMP_VERSION;
@@ -123,9 +120,15 @@ int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping,
 	request.internal_port = htons(mapping->internal_port);
 	request.lifetime = htonl(lifetime);
 
-	if (mapping->suggested_addr.len > 0)
-		request.suggested_port =
-		    addr_get_port((const struct sockaddr *)&mapping->suggested_addr.addr);
+	uint16_t external_port = mapping->external_addr.len > 0
+	                             ? addr_get_port((const struct sockaddr *)&mapping->external_addr)
+	                             : 0;
+	if (external_port == 0)
+		external_port = mapping->suggested_addr.len > 0
+		                    ? addr_get_port((const struct sockaddr *)&mapping->suggested_addr)
+		                    : 0;
+
+	request.suggested_external_port = htons(external_port);
 
 	PLUM_LOG_DEBUG("Sending map request");
 	if (udp_sendto(impl->sock, (const char *)&request, sizeof(request), gateway) < 0) {
@@ -156,7 +159,7 @@ int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping,
 		uint16_t result = ntohs(response->result);
 		if (result != NATPMP_RESULT_SUCCESS) {
 			PLUM_LOG_WARN("Got NAT-PMP error response, result=%d", (int)response->result);
-			continue;
+			return PROTOCOL_ERR_PROTOCOL_FAILED;
 		}
 
 		uint32_t response_lifetime = ntohl(response->lifetime);
@@ -167,10 +170,14 @@ int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping,
 
 		// RFC 6886: The client SHOULD begin trying to renew the mapping halfway to expiry time,
 		// like DHCP.
-		timediff_t expiry_delay = (timediff_t)lifetime * 1000;
-		timediff_t refresh_delay = expiry_delay / 2;
-		PLUM_LOG_VERBOSE("Renewing mapping in %us", (unsigned int)(refresh_delay / 1000));
-		output->refresh_timestamp = current_timestamp() + refresh_delay;
+		if (response_lifetime > 0) {
+			timediff_t expiry_delay = (timediff_t)response_lifetime * 1000;
+			timediff_t refresh_delay = expiry_delay / 2;
+			PLUM_LOG_VERBOSE("Renewing mapping in %us", (unsigned int)(refresh_delay / 1000));
+			output->refresh_timestamp = current_timestamp() + refresh_delay;
+		} else {
+			output->refresh_timestamp = 0;
+		}
 
 		uint16_t external_port = ntohs(response->external_port);
 		output->external_addr = impl->external_addr;
