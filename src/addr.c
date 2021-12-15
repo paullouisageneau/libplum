@@ -89,7 +89,7 @@ int addr_set_port(struct sockaddr *sa, uint16_t port) {
 	}
 }
 
-bool addr_is_any(struct sockaddr *sa) {
+bool addr_is_any(const struct sockaddr *sa) {
 	switch (sa->sa_family) {
 	case AF_INET: {
 		const struct sockaddr_in *sin = (const struct sockaddr_in *)sa;
@@ -120,7 +120,7 @@ bool addr_is_any(struct sockaddr *sa) {
 	}
 }
 
-bool addr_is_local(struct sockaddr *sa) {
+bool addr_is_local(const struct sockaddr *sa) {
 	switch (sa->sa_family) {
 	case AF_INET: {
 		const struct sockaddr_in *sin = (const struct sockaddr_in *)sa;
@@ -154,12 +154,34 @@ bool addr_is_local(struct sockaddr *sa) {
 	}
 }
 
-bool addr_is_private(struct sockaddr *sa) {
-	// TODO
-	return true;
+bool addr_is_private(const struct sockaddr *sa) {
+	switch (sa->sa_family) {
+	case AF_INET: {
+		const struct sockaddr_in *sin = (const struct sockaddr_in *)sa;
+		const uint8_t *b = (const uint8_t *)&sin->sin_addr;
+		// RFC 1918 Private Addresses
+		if (b[0] == 10) // 10.0.0.0/8
+			return true;
+		if (b[0] == 172 && (b[1] & 0xF0) == 16) // 172.16.0.0/12
+			return true;
+		if (b[0] == 192 && b[1] == 168) // 192.168.0.0/16
+			return true;
+		return false;
+	}
+	case AF_INET6: {
+		const struct sockaddr_in6 *sin6 = (const struct sockaddr_in6 *)sa;
+		const uint8_t *b = (const uint8_t *)&sin6->sin6_addr;
+		// RFC 4193 Unique Local Addresses
+		if((b[0] & 0xFE) == 0xFC) // fc00::/7
+			return true;
+		return false;
+	}
+	default:
+		return false;
+	}
 }
 
-bool addr_is_temp_inet6(struct sockaddr *sa) {
+bool addr_is_temp_inet6(const struct sockaddr *sa) {
 	if (sa->sa_family != AF_INET6)
 		return false;
 	if (addr_is_local(sa))
