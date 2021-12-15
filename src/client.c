@@ -17,7 +17,9 @@
  */
 
 #include "client.h"
+#include "addr.h"
 #include "log.h"
+#include "net.h"
 #include "pcp.h"
 #include "upnp.h"
 
@@ -28,6 +30,7 @@
 #define PROTOCOL_PCP 0
 #define PROTOCOL_UPNP 1
 #define PROTOCOLS_COUNT 2
+
 static const protocol_t protocols[PROTOCOLS_COUNT] = {
     {pcp_init, pcp_cleanup, pcp_discover, pcp_map, pcp_unmap, pcp_idle, pcp_interrupt},
     {upnp_init, upnp_cleanup, upnp_discover, upnp_map, upnp_unmap, upnp_idle, upnp_interrupt}};
@@ -201,12 +204,25 @@ static int trigger_mapping_callback(const client_mapping_t *cm, int i) {
 
 static int change_mapping_state(client_mapping_t *cm, int i, plum_state_t state,
                                 bool external_addr_changed) {
-	if (state == cm->state && !external_addr_changed)
-		return 0;
+	if (state != cm->state || (state == PLUM_STATE_SUCCESS && external_addr_changed)) {
+		cm->state = state;
+		return trigger_mapping_callback(cm, i);
+	}
 
-	cm->state = state;
-	return trigger_mapping_callback(cm, i);
+	return 0;
 }
+
+/*
+static bool has_private_address() {
+	addr_record_t local;
+	if (net_get_default_interface(AF_INET, &local) < 0) {
+		PLUM_LOG_ERROR("Unable to get default interface address");
+		return false;
+	}
+
+	return addr_is_private((const struct sockaddr *)&local);
+}
+*/
 
 void client_run(client_t *client) {
 	PLUM_LOG_DEBUG("Starting client thread");
@@ -225,21 +241,22 @@ void client_run(client_t *client) {
 
 		// Try the next protocol
 		++protocol_num;
-		if (protocol_num == PROTOCOLS_COUNT)
+
+		if (protocol_num == PROTOCOLS_COUNT) {
 			protocol_num = 0;
 
-		// Reset all mappings failed
-		if (err != PROTOCOL_ERR_SUCCESS) {
+			// Reset all mappings
+			mutex_lock(&client->mappings_mutex);
 			for (int i = 0; i < client->mappings_size; ++i) {
 				client_mapping_t *cm = client->mappings + i;
 				if (cm->state != PLUM_STATE_FAILURE) {
-					cm->state = PLUM_STATE_FAILURE;
 					memset(&cm->external_addr, 0, sizeof(cm->external_addr));
 					free(cm->impl_record);
 					cm->impl_record = NULL;
-					trigger_mapping_callback(cm, i);
+					change_mapping_state(cm, i, PLUM_STATE_FAILURE, false);
 				}
 			}
+			mutex_unlock(&client->mappings_mutex);
 		}
 	}
 

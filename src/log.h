@@ -23,6 +23,9 @@
 
 #include <stdarg.h>
 
+void plum_log_init();
+void plum_log_cleanup();
+
 bool plum_log_is_enabled(plum_log_level_t level);
 void plum_log_write(plum_log_level_t level, const char *file, int line, const char *fmt, ...);
 

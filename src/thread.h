@@ -19,6 +19,8 @@
 #ifndef PLUM_THREAD_H
 #define PLUM_THREAD_H
 
+#include "timestamp.h"
+
 #ifdef _WIN32
 
 #ifndef _WIN32_WINNT
@@ -30,36 +32,27 @@
 
 #include <windows.h>
 
-typedef HANDLE mutex_t;
+typedef CRITICAL_SECTION mutex_t;
+typedef CONDITION_VARIABLE cond_t;
 typedef HANDLE thread_t;
 typedef DWORD thread_return_t;
 #define THREAD_CALL __stdcall
 
-#define MUTEX_INITIALIZER NULL
-
 #define MUTEX_PLAIN 0x0
 #define MUTEX_RECURSIVE 0x0 // mutexes are recursive on Windows
 
-static inline int mutex_init_impl(mutex_t *m) {
-	return ((*(m) = CreateMutex(NULL, FALSE, NULL)) != NULL ? 0 : (int)GetLastError());
-}
+#define mutex_init(m, flags) InitializeCriticalSection(m)
+#define mutex_lock(m) EnterCriticalSection(m)
+#define mutex_unlock(m) LeaveCriticalSection(m)
+#define mutex_destroy(m) DeleteCriticalSection(m)
 
-static inline int mutex_lock_impl(volatile mutex_t *m) {
-	// Atomically initialize the mutex on first lock
-	if (*(m) == NULL) {
-		HANDLE cm = CreateMutex(NULL, FALSE, NULL);
-		if (cm == NULL)
-			return (int)GetLastError();
-		if (InterlockedCompareExchangePointer(m, cm, NULL) != NULL)
-			CloseHandle(cm);
-	}
-	return WaitForSingleObject(*m, INFINITE) != WAIT_FAILED ? 0 : (int)GetLastError();
-}
-
-#define mutex_init(m, flags) mutex_init_impl(m)
-#define mutex_lock(m) mutex_lock_impl(m)
-#define mutex_unlock(m) (void)ReleaseMutex(*(m))
-#define mutex_destroy(m) (void)CloseHandle(*(m))
+#define cond_init(c) InitializeConditionVariable(c)
+#define cond_wait(c, m) (SleepConditionVariableCS(c, m, INFINITE) ? 0 : (int)GetLastError())
+#define cond_timewait(c, m, msecs)                                                                 \
+	(SleepConditionVariableCS(c, m, (DWORD)secs) ? 0 : (int)GetLastError())
+#define cond_broadcast(c) WakeAllConditionVariable(c)
+#define cond_signal WakeConditionVariable(c)
+#define cond_destroy(c) (void)0
 
 static inline void thread_join_impl(thread_t t, thread_return_t *res) {
 	WaitForSingleObject(t, INFINITE);
@@ -75,13 +68,13 @@ static inline void thread_join_impl(thread_t t, thread_return_t *res) {
 #else // POSIX
 
 #include <pthread.h>
+#include <time.h>
 
 typedef pthread_mutex_t mutex_t;
+typedef pthread_cond_t cond_t;
 typedef pthread_t thread_t;
 typedef void *thread_return_t;
 #define THREAD_CALL
-
-#define MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
 
 #define MUTEX_PLAIN PTHREAD_MUTEX_NORMAL
 #define MUTEX_RECURSIVE PTHREAD_MUTEX_RECURSIVE
@@ -100,6 +93,44 @@ static inline int mutex_init_impl(mutex_t *m, int flags) {
 #define mutex_unlock(m) (void)pthread_mutex_unlock(m)
 #define mutex_destroy(m) (void)pthread_mutex_destroy(m)
 
+static inline int cond_init_impl(cond_t *c) {
+	pthread_condattr_t condattr;
+	pthread_condattr_init(&condattr);
+	// MacOS lacks pthread_condattr_setclock()...
+#ifndef __APPLE__
+	pthread_condattr_setclock(&condattr, CLOCK_MONOTONIC);
+#endif
+	int ret = pthread_cond_init(c, &condattr);
+	pthread_condattr_destroy(&condattr);
+	return ret;
+}
+
+static inline int cond_timedwait_impl(cond_t *c, mutex_t *m, unsigned int msecs) {
+#ifndef __APPLE__
+	clockid_t clockid = CLOCK_MONOTONIC;
+#else
+	clockid_t clockid = CLOCK_REALTIME;
+#endif
+	struct timespec ts;
+	if (clock_gettime(clockid, &ts))
+		return -1;
+
+	ts.tv_sec += msecs % 1000;
+	ts.tv_nsec += (long)((msecs % 1000) * 1000000);
+	if (ts.tv_nsec >= 1000000000) {
+		ts.tv_sec += 1;
+		ts.tv_nsec -= 1000000000;
+	}
+	return pthread_cond_timedwait(c, m, &ts);
+}
+
+#define cond_init(c) cond_init_impl(c)
+#define cond_wait(c, m) pthread_cond_wait(c, m)
+#define cond_timewait(c, m, msecs) cond_timedwait_impl(c, m, msecs)
+#define cond_broadcast(c) pthread_cond_broadcast(c)
+#define cond_signal pthread_cond_signal(c)
+#define cond_destroy(c) (void)pthread_cond_destroy(c)
+
 #define thread_init(t, func, arg) pthread_create(t, NULL, func, arg)
 #define thread_join(t, res) (void)pthread_join(t, res)
 
@@ -109,13 +140,13 @@ static inline int mutex_init_impl(mutex_t *m, int flags) {
 
 #include <stdatomic.h>
 #define atomic(T) _Atomic(T)
-#define atomic_ptr(T) _Atomic(T*)
+#define atomic_ptr(T) _Atomic(T *)
 
 #else // no atomics
 
 // Since we don't need compare-and-swap, just assume store and load are atomic
 #define atomic(T) volatile T
-#define atomic_ptr(T) T* volatile
+#define atomic_ptr(T) T *volatile
 #define atomic_store(a, v) (void)(*(a) = (v))
 #define atomic_load(a) (*(a))
 #define ATOMIC_VAR_INIT(v) (v)
@@ -123,4 +154,3 @@ static inline int mutex_init_impl(mutex_t *m, int flags) {
 #endif // if atomics
 
 #endif // PLUM_THREAD_H
-

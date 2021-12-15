@@ -22,6 +22,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+void plum_random_init();
+void plum_random_cleanup();
+
 void plum_random(void *buf, size_t size);
+
+uint32_t plum_rand32(void);
+uint64_t plum_rand64(void);
 
 #endif // PLUM_RANDOM_H

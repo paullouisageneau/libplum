@@ -364,7 +364,7 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 	}
 
 	char nonce[PCP_MAP_NONCE_SIZE];
-	if(mapping->impl_record)
+	if (mapping->impl_record)
 		memcpy(nonce, mapping->impl_record, PCP_MAP_NONCE_SIZE);
 	else
 		plum_random(nonce, PCP_MAP_NONCE_SIZE);
@@ -458,10 +458,8 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 		// will be removed by the PCP server. To reduce the risk of inadvertent synchronization of
 		// renewal requests, a random jitter component should be included.
 		if (response_lifetime > 0) {
-			uint32_t r;
-			plum_random(&r, sizeof(r));
 			timediff_t expiry_delay = (timediff_t)response_lifetime * 1000;
-			timediff_t refresh_delay = expiry_delay / 2 + r % (expiry_delay / 4);
+			timediff_t refresh_delay = expiry_delay / 2 + plum_rand32() % (expiry_delay / 4);
 			PLUM_LOG_VERBOSE("Renewing mapping in %us", (unsigned int)(refresh_delay / 1000));
 			output->refresh_timestamp = current_timestamp() + refresh_delay;
 		} else {
@@ -479,7 +477,7 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 		output->external_addr = impl->external_addr;
 
 		output->impl_record = malloc(PCP_MAP_NONCE_SIZE);
-		if(!output->impl_record) {
+		if (!output->impl_record) {
 			PLUM_LOG_ERROR("Allocation for nonce record failed");
 			return PROTOCOL_ERR_INSUFF_RESOURCES;
 		}

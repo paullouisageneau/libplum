@@ -59,13 +59,25 @@ static int random_bytes(void *buf, size_t size) {
 	return !status ? 0 : -1;
 }
 
-#else
+#else // No implementation for random_bytes()
+
 static int random_bytes(void *buf, size_t size) {
 	(void)buf;
 	(void)size;
 	return -1;
 }
+
 #endif
+
+#if defined(__linux__) || defined(__unix__) || defined(__APPLE__)
+#define random_func random
+#define srandom_func srandom
+#else
+#define random_func rand
+#define srandom_func srand
+#endif
+
+static mutex_t rand_mutex;
 
 static unsigned int generate_seed() {
 #ifdef _WIN32
@@ -79,37 +91,39 @@ static unsigned int generate_seed() {
 #endif
 }
 
+void plum_random_init() {
+	mutex_init(&rand_mutex, 0);
+	srandom_func(generate_seed());
+}
+
+void plum_random_cleanup() {
+	mutex_destroy(&rand_mutex);
+}
+
 void plum_random(void *buf, size_t size) {
 	if (random_bytes(buf, size) == 0)
 		return;
 
 	// rand() is not thread-safe
-	static mutex_t rand_mutex = MUTEX_INITIALIZER;
 	mutex_lock(&rand_mutex);
 
-	static bool srandom_called = false;
-#if defined(__linux__) || defined(__unix__) || defined(__APPLE__)
-#define random_func random
-#define srandom_func srandom
-	if (!srandom_called)
-		PLUM_LOG_DEBUG("Using random() for random bytes");
-#else
-#define random_func rand
-#define srandom_func srand
-	if (!srandom_called)
-		PLUM_LOG_WARN("Falling back on rand() for random bytes");
-#endif
-	if (!srandom_called) {
-		srandom_func(generate_seed());
-		srandom_called = true;
-	}
 	// RAND_MAX is guaranteed to be at least 2^15 - 1
 	uint8_t *bytes = buf;
 	for (size_t i = 0; i < size; ++i)
 		bytes[i] = (uint8_t)((random_func() & 0x7f80) >> 7);
-#undef random_func
-#undef srandom_func
 
 	mutex_unlock(&rand_mutex);
+}
+
+uint32_t plum_rand32(void) {
+	uint32_t r = 0;
+	plum_random(&r, sizeof(r));
+	return r;
+}
+
+uint64_t plum_rand64(void) {
+	uint64_t r = 0;
+	plum_random(&r, sizeof(r));
+	return r;
 }
 

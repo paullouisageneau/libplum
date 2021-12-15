@@ -28,9 +28,7 @@
 #include <string.h>
 
 static uint16_t random_port() {
-	uint32_t r;
-	plum_random(&r, sizeof(r));
-	return (uint16_t)(1024 + r % (49151 - 1024)); // TODO
+	return (uint16_t)(1024 + plum_rand32() % (49151 - 1024)); // TODO
 }
 
 int upnp_init(protocol_state_t *state) {
@@ -152,7 +150,7 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 		external_port = mapping->suggested_addr.len > 0
 		                    ? addr_get_port((const struct sockaddr *)&mapping->suggested_addr)
 		                    : 0;
-		if(external_port == 0)
+		if (external_port == 0)
 			external_port = random_port();
 	}
 

@@ -20,12 +20,19 @@
 #include "addr.h"
 #include "client.h"
 #include "log.h"
+#include "random.h"
 
 #include <string.h>
 
 client_t *client;
 
 int plum_init() {
+	if (client)
+		return PLUM_ERR_FAILED;
+
+	plum_log_init();
+	plum_random_init();
+
 	client = client_create();
 	if (!client)
 		return PLUM_ERR_FAILED;
@@ -38,40 +45,50 @@ int plum_cleanup() {
 		return PLUM_ERR_FAILED;
 
 	client_destroy(client);
+	client = NULL;
+
+	plum_log_cleanup();
+	plum_random_cleanup();
+
 	return PLUM_ERR_SUCCESS;
 }
 
 int plum_create_mapping(const plum_mapping_t *mapping, plum_mapping_callback_t callback) {
-	if(!client)
+	if (!client)
 		return PLUM_ERR_FAILED;
 
-	if(!mapping)
+	if (!mapping)
 		return PLUM_ERR_INVALID;
 
 	int id = client_add_mapping(client, mapping, callback);
-	if(id < 0)
+	if (id < 0)
 		return PLUM_ERR_FAILED;
 
 	return id;
 }
 
 int plum_query_mapping(int id, plum_state_t *state, plum_mapping_t *mapping) {
-	if(id < 0)
+	if (!client)
+		return PLUM_ERR_FAILED;
+
+	if (id < 0)
 		return PLUM_ERR_INVALID;
 
-	if(client_get_mapping(client, id, state, mapping) < 0)
+	if (client_get_mapping(client, id, state, mapping) < 0)
 		return PLUM_ERR_NOT_AVAIL;
 
 	return PLUM_ERR_SUCCESS;
 }
 
 int plum_destroy_mapping(int id) {
-	if(id < 0)
+	if (!client)
+		return PLUM_ERR_FAILED;
+
+	if (id < 0)
 		return PLUM_ERR_INVALID;
 
-	if(client_remove_mapping(client, id) < 0)
+	if (client_remove_mapping(client, id) < 0)
 		return PLUM_ERR_NOT_AVAIL;
 
 	return PLUM_ERR_SUCCESS;
 }
-
