@@ -225,6 +225,13 @@ int natpmp_impl_check_epoch_time(pcp_impl_t *impl, uint32_t curr_server_time) {
 	PLUM_LOG_VERBOSE("NAT-PMP server epoch time is %u", (unsigned int)curr_server_time);
 	uint32_t curr_client_time = (uint32_t)(current_timestamp() / 1000); // seconds
 
+	if (!impl->has_prev_server_time) {
+		impl->has_prev_server_time = true;
+		impl->prev_client_time = curr_client_time;
+		impl->prev_server_time = curr_server_time;
+		return PROTOCOL_ERR_SUCCESS;
+	}
+
 	// RFC 6886: Every packet sent by the NAT gateway includes a Seconds Since Start of Epoch
 	// (SSSoE) field. [...] Whenever a client receives any packet from the NAT gateway, either
 	// unsolicited or in response to a client request, the client computes its own conservative
