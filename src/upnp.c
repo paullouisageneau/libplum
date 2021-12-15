@@ -148,10 +148,13 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 	uint16_t external_port = mapping->external_addr.len > 0
 	                             ? addr_get_port((const struct sockaddr *)&mapping->external_addr)
 	                             : 0;
-	if (external_port == 0)
+	if (external_port == 0) {
 		external_port = mapping->suggested_addr.len > 0
 		                    ? addr_get_port((const struct sockaddr *)&mapping->suggested_addr)
 		                    : 0;
+		if(external_port == 0)
+			external_port = random_port();
+	}
 
 	int lifetime = 7200; // seconds
 
