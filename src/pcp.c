@@ -478,13 +478,10 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 		                          &impl->external_addr.len);
 		output->external_addr = impl->external_addr;
 
-		output->impl_record = mapping->impl_record;
+		output->impl_record = malloc(PCP_MAP_NONCE_SIZE);
 		if(!output->impl_record) {
-			output->impl_record = malloc(PCP_MAP_NONCE_SIZE);
-			if(!output->impl_record) {
-				PLUM_LOG_ERROR("Allocation for nonce record failed");
-				return PROTOCOL_ERR_INSUFF_RESOURCES;
-			}
+			PLUM_LOG_ERROR("Allocation for nonce record failed");
+			return PROTOCOL_ERR_INSUFF_RESOURCES;
 		}
 		memcpy(output->impl_record, nonce, PCP_MAP_NONCE_SIZE);
 

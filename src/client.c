@@ -271,6 +271,8 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 			client_mapping_t mapping = client->mappings[i];
 			mutex_unlock(&client->mappings_mutex);
 
+			PLUM_LOG_VERBOSE("Mapping %d for internal port %hu is alive", i, mapping.internal_port);
+
 			if (mapping.state == PLUM_STATE_DESTROYING) {
 				PLUM_LOG_INFO("Performing unmapping for internal port %hu", mapping.internal_port);
 
@@ -316,6 +318,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 				    !addr_record_is_equal(&cm->external_addr, &output.external_addr, true);
 				cm->external_addr = output.external_addr;
 				cm->refresh_timestamp = output.refresh_timestamp;
+				free(cm->impl_record);
 				cm->impl_record = output.impl_record;
 				change_mapping_state(cm, i, PLUM_STATE_SUCCESS, changed);
 				mutex_unlock(&client->mappings_mutex);
