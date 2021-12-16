@@ -640,6 +640,7 @@ int pcp_natpmp_impl_wait_response(pcp_impl_t *impl, char *buffer, addr_record_t 
 	}
 
 	if (impl->interrupted) {
+		PLUM_LOG_VERBOSE("PCP/NAT-PMP interrupted");
 		impl->interrupted = false;
 		return PROTOCOL_ERR_INTERRUPTED;
 	}

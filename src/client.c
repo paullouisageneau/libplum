@@ -328,6 +328,9 @@ void client_run(client_t *client) {
 			client->protocol = NULL;
 		}
 
+		if (client->stopped)
+			break;
+
 		// All protocols failed, change mappings to failed
 		mutex_lock(&client->mappings_mutex);
 		for (int i = 0; i < client->mappings_size; ++i) {

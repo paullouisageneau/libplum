@@ -217,11 +217,11 @@ int upnp_interrupt(protocol_state_t *state) {
 
 	impl->interrupted = true;
 
-	PLUM_LOG_VERBOSE("Interrupting PCP/NAT-PMP operation");
+	PLUM_LOG_VERBOSE("Interrupting UPnP operation");
 	if (udp_sendto_self(impl->sock, NULL, 0) < 0) {
 		if (sockerrno != SEAGAIN && sockerrno != SEWOULDBLOCK) {
 			PLUM_LOG_WARN(
-			    "Failed to interrupt PCP/NAT-PMP operation by triggering socket, errno=%d",
+			    "Failed to interrupt UPnP operation by triggering socket, errno=%d",
 			    sockerrno);
 			return PROTOCOL_ERR_UNKNOWN;
 		}
@@ -614,6 +614,7 @@ int upnp_impl_wait_response(upnp_impl_t *impl, char *buffer, size_t size, addr_r
 	}
 
 	if (impl->interrupted) {
+		PLUM_LOG_VERBOSE("UPnP interrupted");
 		impl->interrupted = false;
 		return PROTOCOL_ERR_INTERRUPTED;
 	}
