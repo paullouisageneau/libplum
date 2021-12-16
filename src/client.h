@@ -25,6 +25,8 @@
 #include "thread.h"
 #include "timestamp.h"
 
+#define CLIENT_POLLING_PERIOD 60000 // msecs
+
 typedef struct client_mapping {
 	plum_ip_protocol_t protocol;
 	uint16_t internal_port;
@@ -40,19 +42,23 @@ typedef struct {
 	client_mapping_t *mappings;
 	int mappings_size;
 	mutex_t mappings_mutex;
-	thread_t thread;
 	const protocol_t *protocol;
 	protocol_state_t protocol_state;
+	cond_t protocol_interrupt_cond;
 	mutex_t protocol_mutex;
+	bool stopped;
+	thread_t thread;
 } client_t;
 
 client_t *client_create(void);
 void client_destroy(client_t *client);
-int client_add_mapping(client_t *client, const plum_mapping_t *mapping, plum_mapping_callback_t callback);
+int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
+                       plum_mapping_callback_t callback);
 int client_get_mapping(client_t *client, int i, plum_state_t *state, plum_mapping_t *mapping);
 int client_remove_mapping(client_t *client, int i);
 void client_run(client_t *client);
-int client_run_protocol(client_t *client, const protocol_t *protocol, protocol_state_t *protocol_state);
-int client_interrupt(client_t *client);
+int client_run_protocol(client_t *client, const protocol_t *protocol,
+                        protocol_state_t *protocol_state, timediff_t duration);
+int client_interrupt(client_t *client, bool stop);
 
 #endif

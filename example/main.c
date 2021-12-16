@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
 	plum_mapping_t mapping;
 	memset(&mapping, 0, sizeof(mapping));
 	mapping.protocol = PLUM_IP_PROTOCOL_TCP;
-	mapping.internal_port = 6666;
+	mapping.internal_port = 8000;
 
 	int m = plum_create_mapping(&mapping, mapping_callback);
 

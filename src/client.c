@@ -21,6 +21,7 @@
 #include "log.h"
 #include "net.h"
 #include "pcp.h"
+#include "random.h"
 #include "upnp.h"
 
 #include <string.h>
@@ -50,6 +51,7 @@ static void import_mapping(const plum_mapping_t *mapping, plum_mapping_callback_
 	cm->protocol = mapping->protocol;
 	cm->internal_port = mapping->internal_port;
 	cm->state = PLUM_STATE_PENDING;
+	cm->refresh_timestamp = 0;
 
 	if (*mapping->external_host == '\0' ||
 	    addr_set(AF_UNSPEC, mapping->external_host, mapping->external_port, &cm->suggested_addr) <
@@ -76,6 +78,8 @@ thread_return_t THREAD_CALL client_thread_entry(void *arg) {
 }
 
 client_t *client_create(void) {
+	PLUM_LOG_DEBUG("Creating client...");
+
 	client_t *client = malloc(sizeof(client_t));
 	if (!client) {
 		PLUM_LOG_FATAL("Allocation failed for client");
@@ -95,6 +99,7 @@ client_t *client_create(void) {
 
 	mutex_init(&client->mappings_mutex, MUTEX_RECURSIVE); // so the user call the API from callbacks
 	mutex_init(&client->protocol_mutex, 0);
+	cond_init(&client->protocol_interrupt_cond);
 
 	int ret = thread_init(&client->thread, client_thread_entry, client);
 	if (ret) {
@@ -110,7 +115,15 @@ client_t *client_create(void) {
 }
 
 void client_destroy(client_t *client) {
+	PLUM_LOG_DEBUG("Destroying client...");
+
+	client_interrupt(client, true); // stop
 	thread_join(client->thread, NULL);
+
+	mutex_destroy(&client->mappings_mutex);
+	mutex_destroy(&client->protocol_mutex);
+	cond_destroy(&client->protocol_interrupt_cond);
+
 	free(client->mappings);
 	free(client);
 }
@@ -120,37 +133,37 @@ int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
 	if (!mapping)
 		return -1;
 
+	PLUM_LOG_INFO("Adding mapping for internal port %hu (callback=%d)", mapping->internal_port,
+	              (int)(callback != NULL));
+
 	mutex_lock(&client->mappings_mutex);
 
 	int i = find_empty_mapping_index(client);
-	if (i >= 0) {
-		client_mapping_t *cm = client->mappings + i;
-		import_mapping(mapping, callback, cm);
-		mutex_unlock(&client->mappings_mutex);
-		return i;
+	if (i < 0) {
+		i = client->mappings_size;
+
+		client_mapping_t *new_mappings =
+		    realloc(client->mappings, client->mappings_size * 2 * sizeof(client_mapping_t));
+		if (!new_mappings) {
+			PLUM_LOG_ERROR("Reallocation failed for mappings");
+			mutex_unlock(&client->mappings_mutex);
+			return -1;
+		}
+
+		client->mappings = new_mappings;
+		memset(client->mappings + client->mappings_size, 0,
+		       client->mappings_size * sizeof(client_mapping_t));
+		client->mappings_size *= 2;
 	}
-
-	i = client->mappings_size;
-
-	client_mapping_t *new_mappings =
-	    realloc(client->mappings, client->mappings_size * 2 * sizeof(client_mapping_t));
-	if (!new_mappings) {
-		PLUM_LOG_ERROR("Reallocation failed for mappings");
-		mutex_unlock(&client->mappings_mutex);
-		return -1;
-	}
-
-	client->mappings = new_mappings;
-	memset(client->mappings + client->mappings_size, 0,
-	       client->mappings_size * sizeof(client_mapping_t));
-	client->mappings_size *= 2;
 
 	client_mapping_t *cm = client->mappings + i;
 	import_mapping(mapping, callback, cm);
 
 	mutex_unlock(&client->mappings_mutex);
 
-	client_interrupt(client);
+	PLUM_LOG_INFO("Added mapping for internal port %hu as %d", mapping->internal_port, i);
+
+	client_interrupt(client, false);
 	return i;
 }
 
@@ -174,6 +187,8 @@ int client_get_mapping(client_t *client, int i, plum_state_t *state, plum_mappin
 }
 
 int client_remove_mapping(client_t *client, int i) {
+	PLUM_LOG_INFO("Removing mapping %d", i);
+
 	mutex_lock(&client->mappings_mutex);
 
 	if (i >= client->mappings_size || client->mappings[i].state == PLUM_STATE_DESTROYED) {
@@ -186,7 +201,7 @@ int client_remove_mapping(client_t *client, int i) {
 
 	mutex_unlock(&client->mappings_mutex);
 
-	client_interrupt(client);
+	client_interrupt(client, false);
 	return 0;
 }
 
@@ -208,74 +223,139 @@ static int change_mapping_state(client_mapping_t *cm, int i, plum_state_t state,
 		cm->state = state;
 		return trigger_mapping_callback(cm, i);
 	}
-
 	return 0;
 }
 
-/*
-static bool has_private_address() {
-	addr_record_t local;
-	if (net_get_default_interface(AF_INET, &local) < 0) {
-		PLUM_LOG_ERROR("Unable to get default interface address");
-		return false;
+static void reset_mappings(client_t *client) {
+	// Reset timestamps and records
+	mutex_lock(&client->mappings_mutex);
+	for (int i = 0; i < client->mappings_size; ++i) {
+		client_mapping_t *cm = client->mappings + i;
+		cm->refresh_timestamp = 0;
+		free(cm->impl_record);
+		cm->impl_record = NULL;
 	}
-
-	return addr_is_private((const struct sockaddr *)&local);
+	mutex_unlock(&client->mappings_mutex);
 }
-*/
 
 void client_run(client_t *client) {
 	PLUM_LOG_DEBUG("Starting client thread");
+	mutex_lock(&client->protocol_mutex);
 
-	int protocol_num = PROTOCOL_PCP;
-	while (true) {
-		mutex_lock(&client->protocol_mutex);
-		const protocol_t *protocol = client->protocol = &protocols[protocol_num];
-		client->protocol = protocol;
-		protocol_state_t *protocol_state = &client->protocol_state;
-		mutex_unlock(&client->protocol_mutex);
+	while (!client->stopped) {
+		addr_record_t old_local;
+		memset(&old_local, 0, sizeof(old_local));
 
-		int err = client_run_protocol(client, protocol, protocol_state);
-		if (err == PROTOCOL_ERR_RESET)
-			continue;
-
-		// Try the next protocol
-		++protocol_num;
-
-		if (protocol_num == PROTOCOLS_COUNT) {
-			protocol_num = 0;
-
-			// Reset all mappings
-			mutex_lock(&client->mappings_mutex);
-			for (int i = 0; i < client->mappings_size; ++i) {
-				client_mapping_t *cm = client->mappings + i;
-				if (cm->state != PLUM_STATE_FAILURE) {
-					memset(&cm->external_addr, 0, sizeof(cm->external_addr));
-					free(cm->impl_record);
-					cm->impl_record = NULL;
-					change_mapping_state(cm, i, PLUM_STATE_FAILURE, false);
-				}
+		// Try protocols in order
+		int protocol_num = 0;
+		while (!client->stopped && protocol_num < PROTOCOLS_COUNT) {
+			addr_record_t local;
+			if (net_get_default_interface(AF_INET, &local) < 0) {
+				PLUM_LOG_ERROR("Unable to get default interface address");
+				break;
 			}
-			mutex_unlock(&client->mappings_mutex);
+
+			if (!addr_is_private((const struct sockaddr *)&local)) {
+				if (PLUM_LOG_INFO_ENABLED) {
+					char local_str[ADDR_MAX_STRING_LEN];
+					addr_record_to_string(&local, local_str, ADDR_MAX_STRING_LEN);
+					PLUM_LOG_INFO("Local address is public: %s", local_str);
+				}
+
+				mutex_lock(&client->mappings_mutex);
+				for (int i = 0; i < client->mappings_size; ++i) {
+					client_mapping_t *cm = client->mappings + i;
+					addr_record_t external = local;
+					addr_set_port((struct sockaddr *)&external, cm->internal_port);
+					bool changed = !addr_record_is_equal(&cm->external_addr, &external, true);
+					cm->external_addr = external;
+					change_mapping_state(cm, i, PLUM_STATE_SUCCESS, changed);
+				}
+				mutex_unlock(&client->mappings_mutex);
+
+				cond_timedwait(&client->protocol_interrupt_cond, &client->protocol_mutex,
+				               CLIENT_POLLING_PERIOD);
+				continue;
+			}
+
+			bool changed = old_local.len > 0 && !addr_record_is_equal(&old_local, &local, false);
+			old_local = local;
+			if (changed) {
+				PLUM_LOG_INFO("Local address changed, restarting");
+				reset_mappings(client);
+				if (client->protocol) {
+					client->protocol->cleanup(&client->protocol_state);
+					client->protocol = NULL;
+				}
+				protocol_num = 0;
+			}
+
+			if (!client->protocol)
+				client->protocol = protocols + protocol_num;
+
+			// Init and run the protocol
+			int err = client->protocol->init(&client->protocol_state);
+			if (err == PROTOCOL_ERR_SUCCESS) {
+				mutex_unlock(&client->protocol_mutex);
+				err = client_run_protocol(client, client->protocol, &client->protocol_state,
+				                          CLIENT_POLLING_PERIOD);
+				mutex_lock(&client->protocol_mutex);
+			}
+
+			if (err == PROTOCOL_ERR_SUCCESS || err == PROTOCOL_ERR_INTERRUPTED)
+				continue;
+
+			// Protocol reset or failure
+			reset_mappings(client);
+			client->protocol->cleanup(&client->protocol_state);
+			client->protocol = NULL;
+
+			if (err == PROTOCOL_ERR_RESET || err == PROTOCOL_ERR_RESET_DELAY) {
+				PLUM_LOG_DEBUG("Protocol was reset");
+				if (err == PROTOCOL_ERR_RESET_DELAY)
+					cond_timedwait(&client->protocol_interrupt_cond, &client->protocol_mutex,
+					               plum_rand32() % 5000); // 0-5 secs
+				continue;
+			}
+
+			PLUM_LOG_DEBUG("Protocol failed");
+			++protocol_num;
 		}
+
+		reset_mappings(client);
+		if (client->protocol) {
+			client->protocol->cleanup(&client->protocol_state);
+			client->protocol = NULL;
+		}
+
+		// All protocols failed, change mappings to failed
+		mutex_lock(&client->mappings_mutex);
+		for (int i = 0; i < client->mappings_size; ++i) {
+			client_mapping_t *cm = client->mappings + i;
+			memset(&cm->external_addr, 0, sizeof(cm->external_addr));
+			change_mapping_state(cm, i, PLUM_STATE_FAILURE, false);
+		}
+		mutex_unlock(&client->mappings_mutex);
+
+		cond_timedwait(&client->protocol_interrupt_cond, &client->protocol_mutex,
+		               CLIENT_POLLING_PERIOD);
 	}
 
 	PLUM_LOG_DEBUG("Exiting client thread");
+	mutex_unlock(&client->protocol_mutex);
 }
 
 int client_run_protocol(client_t *client, const protocol_t *protocol,
-                        protocol_state_t *protocol_state) {
-	int err = protocol->init(protocol_state);
+                        protocol_state_t *protocol_state, timediff_t duration) {
+	timestamp_t end_timestamp = current_timestamp() + duration;
+
+	const timediff_t discover_timeout = 10 * 1000;
+	int err = protocol->discover(protocol_state, discover_timeout);
 	if (err != PROTOCOL_ERR_SUCCESS)
 		return err;
 
-	const timediff_t discover_timeout = 10 * 1000;
-	err = protocol->discover(protocol_state, discover_timeout);
-	if (err != PROTOCOL_ERR_SUCCESS)
-		goto error;
-
-	while (true) {
-		timestamp_t next_timestamp = 0;
+	while (!client->stopped && current_timestamp() < end_timestamp) {
+		timestamp_t next_timestamp = end_timestamp;
 		mutex_lock(&client->mappings_mutex);
 		int mappings_size = client->mappings_size;
 		mutex_unlock(&client->mappings_mutex);
@@ -318,9 +398,8 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 				protocol_map_output_t output;
 				memset(&output, 0, sizeof(output));
 				err = protocol->map(protocol_state, &mapping, &output, mapping_timeout);
-				// TODO: wait on reset
 				if (err != PROTOCOL_ERR_SUCCESS)
-					goto error;
+					return err;
 
 				if (PLUM_LOG_INFO_ENABLED) {
 					char external_str[ADDR_MAX_STRING_LEN];
@@ -341,30 +420,38 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 				mutex_unlock(&client->mappings_mutex);
 			}
 
-			if (next_timestamp == 0 || next_timestamp > mapping.refresh_timestamp)
+			if (next_timestamp > mapping.refresh_timestamp)
 				next_timestamp = mapping.refresh_timestamp;
 		}
 
 		timestamp_t now = current_timestamp();
 		if (now < next_timestamp) {
 			timediff_t diff = next_timestamp - now;
+			if (diff > CLIENT_POLLING_PERIOD)
+				diff = CLIENT_POLLING_PERIOD;
+
 			err = protocol->idle(protocol_state, diff);
 			if (err != PROTOCOL_ERR_SUCCESS && err != PROTOCOL_ERR_TIMEOUT &&
 			    err != PROTOCOL_ERR_INTERRUPTED)
-				goto error;
+				return err;
 		}
 	}
 
-error:
-	protocol->cleanup(protocol_state);
-	return err;
+	return PROTOCOL_ERR_SUCCESS;
 }
 
-int client_interrupt(client_t *client) {
+int client_interrupt(client_t *client, bool stop) {
+	PLUM_LOG_DEBUG("Interrupting client");
+
 	int err = PROTOCOL_ERR_SUCCESS;
 	mutex_lock(&client->protocol_mutex);
+	if (stop)
+		client->stopped = true;
+
 	if (client->protocol)
 		err = client->protocol->interrupt(&client->protocol_state);
+
+	cond_signal(&client->protocol_interrupt_cond);
 	mutex_unlock(&client->protocol_mutex);
 	return err;
 }

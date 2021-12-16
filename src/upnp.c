@@ -90,32 +90,21 @@ int upnp_discover(protocol_state_t *state, timediff_t duration) {
 		if (probe_end_timestamp > end_timestamp)
 			probe_end_timestamp = end_timestamp;
 
+		const timediff_t query_duration = 10000;
+		timestamp_t query_end_timestamp = current_timestamp() + query_duration;
+		if (query_end_timestamp > end_timestamp)
+			query_end_timestamp = end_timestamp;
+
 		PLUM_LOG_DEBUG("Probing UPnP...");
-		int err = upnp_impl_probe(impl, &state->gateway, probe_end_timestamp);
+		int err = upnp_impl_probe(impl, &state->gateway, probe_end_timestamp, query_end_timestamp);
 		if (err == PROTOCOL_ERR_SUCCESS) {
-			const timediff_t query_duration = 10000;
-			timestamp_t query_end_timestamp = current_timestamp() + query_duration;
-			if (query_end_timestamp > end_timestamp)
-				query_end_timestamp = end_timestamp;
-
-			err = upnp_impl_query_control_url(impl, query_end_timestamp);
-			if (err == PROTOCOL_ERR_SUCCESS) {
-				if (PLUM_LOG_INFO_ENABLED) {
-					char gateway_str[ADDR_MAX_STRING_LEN];
-					addr_record_to_string(&state->gateway, gateway_str, ADDR_MAX_STRING_LEN);
-					PLUM_LOG_INFO("Success probing UPnP, gateway address is %s", gateway_str);
-				}
-
-				query_end_timestamp = current_timestamp() + query_duration;
-				if (query_end_timestamp > end_timestamp)
-					query_end_timestamp = end_timestamp;
-
-				err = upnp_impl_query_external_addr(impl, query_end_timestamp);
-				if (err == PROTOCOL_ERR_SUCCESS) {
-					PLUM_LOG_INFO("External address is %s", impl->external_addr_str);
-					return PROTOCOL_ERR_SUCCESS;
-				}
+			if (PLUM_LOG_INFO_ENABLED) {
+				char gateway_str[ADDR_MAX_STRING_LEN];
+				addr_record_to_string(&state->gateway, gateway_str, ADDR_MAX_STRING_LEN);
+				PLUM_LOG_INFO("Success probing UPnP, external address is %s",
+				              impl->external_addr_str);
 			}
+			return PROTOCOL_ERR_SUCCESS;
 		}
 
 		if (err != PROTOCOL_ERR_TIMEOUT)
@@ -241,7 +230,8 @@ int upnp_interrupt(protocol_state_t *state) {
 	return PROTOCOL_ERR_SUCCESS;
 }
 
-int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t end_timestamp) {
+int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t end_timestamp,
+                    timestamp_t query_end_timestamp) {
 	PLUM_LOG_DEBUG("Probing gateway with SSDP");
 	addr_record_t broadcast;
 	addr_set(AF_INET, UPNP_SSDP_ADDRESS, UPNP_SSDP_PORT, &broadcast);
@@ -293,13 +283,25 @@ int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t
 			continue;
 		}
 
+		*found_gateway = src;
+
 		PLUM_LOG_DEBUG("UPnP-IGP location URL: %s", location_url);
-		free(impl->location_url);
+		if (impl->location_url) {
+			if (strcmp(impl->location_url, location_url) != 0) {
+				PLUM_LOG_WARN("UPnP-IGP location URL has changed, resetting");
+				return PROTOCOL_ERR_RESET;
+			}
+			return PROTOCOL_ERR_SUCCESS;
+		}
+
 		impl->location_url = malloc(strlen(location_url) + 1);
 		strcpy(impl->location_url, location_url);
 
-		*found_gateway = src;
-		return PROTOCOL_ERR_SUCCESS;
+		int err = upnp_impl_query_control_url(impl, query_end_timestamp);
+		if (err != PROTOCOL_ERR_SUCCESS)
+			return err;
+
+		return upnp_impl_query_external_addr(impl, query_end_timestamp);
 	}
 
 	return len; // len < 0

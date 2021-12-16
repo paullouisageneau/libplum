@@ -49,7 +49,8 @@ int upnp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timedif
 int upnp_idle(protocol_state_t *state, timediff_t duration);
 int upnp_interrupt(protocol_state_t *state);
 
-int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t end_timestamp);
+int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t end_timestamp,
+                    timestamp_t query_end_timestamp);
 int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp);
 int upnp_impl_query_external_addr(upnp_impl_t *impl, timestamp_t end_timestamp);
 int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t external_port,

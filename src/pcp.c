@@ -394,7 +394,7 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 
 	// RFC 6887: If the PCP client does not know the external address, or does not have a
 	// preference, it MUST use the address-family-specific all-zeros address
-	if (external.len == 0)
+	if (external.len == 0 || lifetime == 0)
 		addr_set(AF_INET, "0.0.0.0", 0, &external);
 
 	// RFC 6887: When the address field holds an IPv4 address, an IPv4-mapped IPv6 address [RFC4291]
@@ -458,7 +458,7 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 		// will be removed by the PCP server. To reduce the risk of inadvertent synchronization of
 		// renewal requests, a random jitter component should be included.
 		if (response_lifetime > 0) {
-			timediff_t expiry_delay = (timediff_t)response_lifetime * 1000;
+			timediff_t expiry_delay = (timediff_t)lifetime * 1000;
 			timediff_t refresh_delay = expiry_delay / 2 + plum_rand32() % (expiry_delay / 4);
 			PLUM_LOG_VERBOSE("Renewing mapping in %us", (unsigned int)(refresh_delay / 1000));
 			output->refresh_timestamp = current_timestamp() + refresh_delay;
@@ -627,8 +627,10 @@ int pcp_natpmp_impl_wait_response(pcp_impl_t *impl, char *buffer, addr_record_t 
 
 				if (i == 0) {                                            // mcast_sock
 					int err = process_mcast_response(impl, buffer, len); // handles PCP and NAT-PMP
-					if (err == PROTOCOL_ERR_RESET)
-						return err;
+					if (err == PROTOCOL_ERR_RESET) {
+						// RFC 6887: [The client] MUST wait a random amount of time between 0 and 5 seconds
+						return PROTOCOL_ERR_RESET_DELAY;
+					}
 				} else {         // sock
 					if (len > 0) // 0-length datagrams are used to interrupt, ignore them
 						return len;

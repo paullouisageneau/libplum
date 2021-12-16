@@ -48,10 +48,10 @@ typedef DWORD thread_return_t;
 
 #define cond_init(c) InitializeConditionVariable(c)
 #define cond_wait(c, m) (SleepConditionVariableCS(c, m, INFINITE) ? 0 : (int)GetLastError())
-#define cond_timewait(c, m, msecs)                                                                 \
+#define cond_timedwait(c, m, msecs)                                                                \
 	(SleepConditionVariableCS(c, m, (DWORD)secs) ? 0 : (int)GetLastError())
 #define cond_broadcast(c) WakeAllConditionVariable(c)
-#define cond_signal WakeConditionVariable(c)
+#define cond_signal(c) WakeConditionVariable(c)
 #define cond_destroy(c) (void)0
 
 static inline void thread_join_impl(thread_t t, thread_return_t *res) {
@@ -107,15 +107,15 @@ static inline int cond_init_impl(cond_t *c) {
 
 static inline int cond_timedwait_impl(cond_t *c, mutex_t *m, unsigned int msecs) {
 #ifndef __APPLE__
-	clockid_t clockid = CLOCK_MONOTONIC;
+	const clockid_t clockid = CLOCK_MONOTONIC;
 #else
-	clockid_t clockid = CLOCK_REALTIME;
+	const clockid_t clockid = CLOCK_REALTIME;
 #endif
 	struct timespec ts;
 	if (clock_gettime(clockid, &ts))
 		return -1;
 
-	ts.tv_sec += msecs % 1000;
+	ts.tv_sec += msecs / 1000;
 	ts.tv_nsec += (long)((msecs % 1000) * 1000000);
 	if (ts.tv_nsec >= 1000000000) {
 		ts.tv_sec += 1;
@@ -126,9 +126,9 @@ static inline int cond_timedwait_impl(cond_t *c, mutex_t *m, unsigned int msecs)
 
 #define cond_init(c) cond_init_impl(c)
 #define cond_wait(c, m) pthread_cond_wait(c, m)
-#define cond_timewait(c, m, msecs) cond_timedwait_impl(c, m, msecs)
+#define cond_timedwait(c, m, msecs) cond_timedwait_impl(c, m, msecs)
 #define cond_broadcast(c) pthread_cond_broadcast(c)
-#define cond_signal pthread_cond_signal(c)
+#define cond_signal(c) pthread_cond_signal(c)
 #define cond_destroy(c) (void)pthread_cond_destroy(c)
 
 #define thread_init(t, func, arg) pthread_create(t, NULL, func, arg)

@@ -171,7 +171,7 @@ int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping,
 		// RFC 6886: The client SHOULD begin trying to renew the mapping halfway to expiry time,
 		// like DHCP.
 		if (response_lifetime > 0) {
-			timediff_t expiry_delay = (timediff_t)response_lifetime * 1000;
+			timediff_t expiry_delay = (timediff_t)lifetime * 1000;
 			timediff_t refresh_delay = expiry_delay / 2;
 			PLUM_LOG_VERBOSE("Renewing mapping in %us", (unsigned int)(refresh_delay / 1000));
 			output->refresh_timestamp = current_timestamp() + refresh_delay;
