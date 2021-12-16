@@ -90,8 +90,7 @@ int upnp_discover(protocol_state_t *state, timediff_t duration) {
 		if (probe_end_timestamp > end_timestamp)
 			probe_end_timestamp = end_timestamp;
 
-		const timediff_t query_duration = 10000;
-		timestamp_t query_end_timestamp = current_timestamp() + query_duration;
+		timestamp_t query_end_timestamp = current_timestamp() + UPNP_QUERY_TIMEOUT;
 		if (query_end_timestamp > end_timestamp)
 			query_end_timestamp = end_timestamp;
 
@@ -111,7 +110,7 @@ int upnp_discover(protocol_state_t *state, timediff_t duration) {
 			return err;
 
 		probe_duration *= 2;
-	} while (++probe_count < 3 && current_timestamp() < end_timestamp);
+	} while (++probe_count < UPNP_SSDP_MAX_ATTEMPTS && current_timestamp() < end_timestamp);
 
 	return PROTOCOL_ERR_TIMEOUT;
 }
@@ -122,8 +121,7 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 	timestamp_t end_timestamp = current_timestamp() + duration;
 
 	if (*impl->external_addr_str == '\0') {
-		const timediff_t query_duration = 10000;
-		timestamp_t query_end_timestamp = current_timestamp() + query_duration;
+		timestamp_t query_end_timestamp = current_timestamp() + UPNP_QUERY_TIMEOUT;
 		if (query_end_timestamp > end_timestamp)
 			query_end_timestamp = end_timestamp;
 
@@ -147,8 +145,7 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 
 	int query_count = 0;
 	do {
-		const timediff_t query_duration = 10000;
-		timestamp_t query_end_timestamp = current_timestamp() + query_duration;
+		timestamp_t query_end_timestamp = current_timestamp() + UPNP_QUERY_TIMEOUT;
 		if (query_end_timestamp > end_timestamp)
 			query_end_timestamp = end_timestamp;
 
@@ -178,7 +175,7 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 		} else if (err != PROTOCOL_ERR_TIMEOUT)
 			return err;
 
-	} while (++query_count < 3 && current_timestamp() < end_timestamp);
+	} while (++query_count < UPNP_MAP_MAX_ATTEMPTS && current_timestamp() < end_timestamp);
 
 	return PROTOCOL_ERR_TIMEOUT;
 }
@@ -220,9 +217,8 @@ int upnp_interrupt(protocol_state_t *state) {
 	PLUM_LOG_VERBOSE("Interrupting UPnP operation");
 	if (udp_sendto_self(impl->sock, NULL, 0) < 0) {
 		if (sockerrno != SEAGAIN && sockerrno != SEWOULDBLOCK) {
-			PLUM_LOG_WARN(
-			    "Failed to interrupt UPnP operation by triggering socket, errno=%d",
-			    sockerrno);
+			PLUM_LOG_WARN("Failed to interrupt UPnP operation by triggering socket, errno=%d",
+			              sockerrno);
 			return PROTOCOL_ERR_UNKNOWN;
 		}
 	}

@@ -91,6 +91,11 @@ int pcp_discover(protocol_state_t *state, timediff_t duration) {
 	pcp_impl_t *impl = state->impl;
 	timestamp_t end_timestamp = current_timestamp() + duration;
 
+	// RFC 6886: To determine the external IPv4 address, or to request a port mapping, a NAT-PMP
+	// client sends its request packet to port 5351 of its configured gateway address, and waits 250
+	// ms for a response.  If no NAT-PMP response is received from the gateway after 250 ms, the
+	// client retransmits its request and waits 500 ms.  The client SHOULD repeat this process with
+	// the interval between attempts doubling each time.
 	int probe_count = 0;
 	timediff_t probe_duration = 250;
 	do {
@@ -122,7 +127,7 @@ int pcp_discover(protocol_state_t *state, timediff_t duration) {
 			return err;
 
 		probe_duration *= 2;
-	} while (++probe_count < 9 && current_timestamp() < end_timestamp);
+	} while (++probe_count < PCP_MAX_ATTEMPTS && current_timestamp() < end_timestamp);
 
 	return PROTOCOL_ERR_TIMEOUT;
 }
@@ -176,7 +181,7 @@ int pcp_map(protocol_state_t *state, const client_mapping_t *mapping, protocol_m
 			return err;
 
 		map_duration *= 2;
-	} while (++map_count < 9 && current_timestamp() < end_timestamp);
+	} while (++map_count < PCP_MAX_ATTEMPTS && current_timestamp() < end_timestamp);
 
 	return PROTOCOL_ERR_TIMEOUT;
 }
@@ -220,7 +225,7 @@ int pcp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timediff
 			return err;
 
 		map_duration *= 2;
-	} while (++map_count < 9 && current_timestamp() < end_timestamp);
+	} while (++map_count < PCP_MAX_ATTEMPTS && current_timestamp() < end_timestamp);
 
 	return PROTOCOL_ERR_TIMEOUT;
 }

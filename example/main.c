@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
 
 	int id = plum_create_mapping(&mapping, mapping_callback);
 
-	sleep(2);
+	sleep(30);
 
 	plum_destroy_mapping(id);
 	plum_cleanup();

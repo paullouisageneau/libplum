@@ -25,7 +25,9 @@
 #include "thread.h"
 #include "timestamp.h"
 
-#define CLIENT_POLLING_PERIOD 60000 // msecs
+#define CLIENT_MAX_DISCOVER_TIMEOUT 10000 // msecs
+#define CLIENT_MAX_MAPPING_TIMEOUT 10000  // msecs
+#define CLIENT_RECHECK_PERIOD 300000      // msecs
 
 typedef struct client_mapping {
 	plum_ip_protocol_t protocol;

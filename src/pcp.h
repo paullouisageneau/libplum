@@ -33,6 +33,8 @@
 // RFC 6887: All PCP messages are sent over UDP, with a maximum UDP payload length of 1100 octets.
 #define PCP_MAX_PAYLOAD_LENGTH 1100
 
+#define PCP_MAX_ATTEMPTS 4 // RFC 6886 recommends 9
+
 typedef struct {
 	socket_t sock;
 	socket_t mcast_sock;

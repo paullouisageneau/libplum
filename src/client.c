@@ -286,7 +286,7 @@ void client_run(client_t *client) {
 					break;
 
 				cond_timedwait(&client->protocol_interrupt_cond, &client->protocol_mutex,
-				               CLIENT_POLLING_PERIOD);
+				               CLIENT_RECHECK_PERIOD);
 				continue;
 			}
 
@@ -310,7 +310,7 @@ void client_run(client_t *client) {
 			if (err == PROTOCOL_ERR_SUCCESS) {
 				mutex_unlock(&client->protocol_mutex);
 				err = client_run_protocol(client, client->protocol, &client->protocol_state,
-				                          CLIENT_POLLING_PERIOD);
+				                          CLIENT_RECHECK_PERIOD);
 				mutex_lock(&client->protocol_mutex);
 			}
 
@@ -364,7 +364,7 @@ void client_run(client_t *client) {
 		mutex_unlock(&client->mappings_mutex);
 
 		cond_timedwait(&client->protocol_interrupt_cond, &client->protocol_mutex,
-		               CLIENT_POLLING_PERIOD);
+		               CLIENT_RECHECK_PERIOD);
 	}
 
 	PLUM_LOG_DEBUG("Exiting client thread");
@@ -375,8 +375,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
                         protocol_state_t *protocol_state, timediff_t duration) {
 	timestamp_t end_timestamp = current_timestamp() + duration;
 
-	const timediff_t discover_timeout = 10 * 1000;
-	int err = protocol->discover(protocol_state, discover_timeout);
+	int err = protocol->discover(protocol_state, CLIENT_MAX_DISCOVER_TIMEOUT);
 	if (err != PROTOCOL_ERR_SUCCESS)
 		return err;
 
@@ -399,8 +398,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 			if (mapping.state == PLUM_STATE_DESTROYING) {
 				PLUM_LOG_INFO("Performing unmapping for internal port %hu", mapping.internal_port);
 
-				const timediff_t mapping_timeout = 30 * 1000;
-				err = protocol->unmap(protocol_state, &mapping, mapping_timeout);
+				err = protocol->unmap(protocol_state, &mapping, CLIENT_MAX_MAPPING_TIMEOUT);
 				if (err != PROTOCOL_ERR_SUCCESS)
 					return err;
 
@@ -418,10 +416,9 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 			if (mapping.refresh_timestamp <= current_timestamp()) {
 				PLUM_LOG_INFO("Performing mapping for internal port %hu", mapping.internal_port);
 
-				const timediff_t mapping_timeout = 30 * 1000;
 				protocol_map_output_t output;
 				memset(&output, 0, sizeof(output));
-				err = protocol->map(protocol_state, &mapping, &output, mapping_timeout);
+				err = protocol->map(protocol_state, &mapping, &output, CLIENT_MAX_MAPPING_TIMEOUT);
 				if (err != PROTOCOL_ERR_SUCCESS)
 					return err;
 
@@ -454,8 +451,8 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 		timestamp_t now = current_timestamp();
 		if (now < next_timestamp) {
 			timediff_t diff = next_timestamp - now;
-			if (diff > CLIENT_POLLING_PERIOD)
-				diff = CLIENT_POLLING_PERIOD;
+			if (diff > CLIENT_RECHECK_PERIOD)
+				diff = CLIENT_RECHECK_PERIOD;
 
 			err = protocol->idle(protocol_state, diff);
 			if (err != PROTOCOL_ERR_SUCCESS && err != PROTOCOL_ERR_TIMEOUT)
