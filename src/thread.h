@@ -49,7 +49,7 @@ typedef DWORD thread_return_t;
 #define cond_init(c) InitializeConditionVariable(c)
 #define cond_wait(c, m) (SleepConditionVariableCS(c, m, INFINITE) ? 0 : (int)GetLastError())
 #define cond_timedwait(c, m, msecs)                                                                \
-	(SleepConditionVariableCS(c, m, (DWORD)secs) ? 0 : (int)GetLastError())
+	(SleepConditionVariableCS(c, m, (DWORD)msecs) ? 0 : (int)GetLastError())
 #define cond_broadcast(c) WakeAllConditionVariable(c)
 #define cond_signal(c) WakeConditionVariable(c)
 #define cond_destroy(c) (void)0
