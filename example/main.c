@@ -57,11 +57,11 @@ int main(int argc, char **argv) {
 	mapping.protocol = PLUM_IP_PROTOCOL_TCP;
 	mapping.internal_port = 8000;
 
-	int m = plum_create_mapping(&mapping, mapping_callback);
+	int id = plum_create_mapping(&mapping, mapping_callback);
 
 	sleep(2);
 
-	plum_destroy_mapping(m);
+	plum_destroy_mapping(id);
 
 	sleep(2);
 
