@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.7)
 project (libplum
 	VERSION 0.1.0
 	LANGUAGES C)
-set(PROJECT_DESCRIPTION "PLUM Port Lightweight and Universal Mapping")
+set(PROJECT_DESCRIPTION "Multi-protocol Port Mapping client library")
 
 option(NO_EXAMPLE "Disable example build" OFF)
 option(NO_EXPORT_HEADER "Disable export header" OFF)
@@ -10,7 +10,6 @@ option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 
 set(C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
 
 if(WIN32)
 	add_definitions(-DWIN32_LEAN_AND_MEAN)
@@ -79,35 +78,13 @@ if(WIN32)
 		bcrypt)
 endif()
 
-if (USE_NETTLE)
-	find_package(Nettle REQUIRED)
-    target_compile_definitions(plum PRIVATE USE_NETTLE=1)
-    target_link_libraries(plum PRIVATE Nettle::Nettle)
-    target_compile_definitions(plum-static PRIVATE USE_NETTLE=1)
-    target_link_libraries(plum-static PRIVATE Nettle::Nettle)
-else()
-    target_compile_definitions(plum PRIVATE USE_NETTLE=0)
-    target_compile_definitions(plum-static PRIVATE USE_NETTLE=0)
-endif()
+set_target_properties(plum PROPERTIES EXPORT_NAME LibPlum)
+add_library(LibPlum::LibPlum ALIAS plum)
 
-if (NO_SERVER)
-	target_compile_definitions(plum PRIVATE NO_SERVER)
-	target_compile_definitions(plum-static PRIVATE NO_SERVER)
-endif()
+set_target_properties(plum-static PROPERTIES EXPORT_NAME LibPlumStatic)
+add_library(LibPlum::LibPlumStatic ALIAS plum-static)
 
-if(APPLE)
-	# This seems to be necessary on MacOS
-	target_include_directories(plum PRIVATE /usr/local/include)
-	target_include_directories(plum-static PRIVATE /usr/local/include)
-endif()
-
-set_target_properties(plum PROPERTIES EXPORT_NAME LibJuice)
-add_library(LibJuice::LibJuice ALIAS plum)
-
-set_target_properties(plum-static PROPERTIES EXPORT_NAME LibJuiceStatic)
-add_library(LibJuice::LibJuiceStatic ALIAS plum-static)
-
-install(TARGETS plum EXPORT LibJuiceTargets
+install(TARGETS plum EXPORT LibPlumTargets
 	RUNTIME DESTINATION bin
 	LIBRARY DESTINATION lib
 	ARCHIVE DESTINATION lib
@@ -117,25 +94,25 @@ install(FILES ${LIBPLUM_HEADERS} DESTINATION include/plum)
 
 # Export Targets
 install(
-	EXPORT LibJuiceTargets
-	FILE LibJuiceTargets.cmake
-	NAMESPACE LibJuice::
-	DESTINATION lib/cmake/LibJuice
+	EXPORT LibPlumTargets
+	FILE LibPlumTargets.cmake
+	NAMESPACE LibPlum::
+	DESTINATION lib/cmake/LibPlum
 )
 
 # Export config
 install(
-        FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/LibJuiceConfig.cmake
-        DESTINATION lib/cmake/LibJuice
+    FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/LibPlumConfig.cmake
+    DESTINATION lib/cmake/LibPlum
 )
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
-    ${CMAKE_BINARY_DIR}/LibJuiceConfigVersion.cmake
+    ${CMAKE_BINARY_DIR}/LibPlumConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY SameMajorVersion)
-install(FILES ${CMAKE_BINARY_DIR}/LibJuiceConfigVersion.cmake
-    DESTINATION lib/cmake/LibJuice)
+install(FILES ${CMAKE_BINARY_DIR}/LibPlumConfigVersion.cmake
+    DESTINATION lib/cmake/LibPlum)
 
 if(NOT NO_EXPORT_HEADER AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.12")
 	include(GenerateExportHeader)
@@ -161,7 +138,7 @@ if(WARNINGS_AS_ERRORS)
 	endif()
 endif()
 
-# Tests
+# Example
 if(NOT NO_EXAMPLE)
 	add_executable(plum-example ${EXAMPLE_SOURCES})
 	target_include_directories(plum-example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/plum)
