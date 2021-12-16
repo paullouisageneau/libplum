@@ -29,8 +29,20 @@ static void sleep(unsigned int secs) { Sleep(secs * 1000); }
 #endif
 
 static void mapping_callback(int id, plum_state_t state, const plum_mapping_t *mapping) {
-	printf("Mapping callback: %hu -> %s:%hu state=%d\n", mapping->internal_port,
-	       mapping->external_host, mapping->external_port, (int)state);
+	printf("Mapping %d: state=%d\n", id, (int)state);
+	switch (state) {
+	case PLUM_STATE_SUCCESS:
+		printf("Mapping %d: success, internal=%hu, external=%s:%hu\n", id, mapping->internal_port,
+		       mapping->external_host, mapping->external_port);
+		break;
+
+	case PLUM_STATE_FAILURE:
+		printf("Mapping %d: failed", id);
+		break;
+
+	default:
+		break;
+	}
 }
 
 int main(int argc, char **argv) {
