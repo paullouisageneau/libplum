@@ -96,7 +96,7 @@ int header_extract(const char *str, const char *name, char *buffer, size_t size)
 	if (ret < 0 || ret >= PATTERN_BUFFER_SIZE)
 		return -1;
 
-	const char *after = "\n";
+	const char *after = "\r\n";
 
 	return string_extract(str, before, after, buffer, size, true); // case-insensitive
 }
