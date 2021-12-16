@@ -115,7 +115,6 @@ int tcp_recv(socket_t sock, char *buffer, size_t size, timestamp_t end_timestamp
 		pfd.fd = sock;
 		pfd.events = POLLIN;
 
-		PLUM_LOG_VERBOSE("Entering poll for %d ms", (int)timediff);
 		int ret = poll(&pfd, 1, (int)timediff);
 		if (ret < 0) {
 			if (sockerrno == SEINTR || sockerrno == SEAGAIN) {
@@ -170,7 +169,6 @@ int tcp_send(socket_t sock, const char *data, size_t size, timestamp_t end_times
 		pfd.fd = sock;
 		pfd.events = POLLOUT;
 
-		PLUM_LOG_VERBOSE("Entering poll for %d ms", (int)timediff);
 		int ret = poll(&pfd, 1, (int)timediff);
 		if (ret < 0) {
 			if (sockerrno == SEINTR || sockerrno == SEAGAIN) {
