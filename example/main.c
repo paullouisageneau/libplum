@@ -50,8 +50,6 @@ int main(int argc, char **argv) {
 
 	plum_init();
 
-	sleep(2);
-
 	plum_mapping_t mapping;
 	memset(&mapping, 0, sizeof(mapping));
 	mapping.protocol = PLUM_IP_PROTOCOL_TCP;
@@ -62,10 +60,6 @@ int main(int argc, char **argv) {
 	sleep(2);
 
 	plum_destroy_mapping(id);
-
-	sleep(2);
-
 	plum_cleanup();
-
 	return 0;
 }

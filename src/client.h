@@ -46,7 +46,7 @@ typedef struct {
 	protocol_state_t protocol_state;
 	cond_t protocol_interrupt_cond;
 	mutex_t protocol_mutex;
-	bool stopped;
+	bool is_stopping;
 	thread_t thread;
 } client_t;
 

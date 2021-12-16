@@ -628,7 +628,8 @@ int pcp_natpmp_impl_wait_response(pcp_impl_t *impl, char *buffer, addr_record_t 
 				if (i == 0) {                                            // mcast_sock
 					int err = process_mcast_response(impl, buffer, len); // handles PCP and NAT-PMP
 					if (err == PROTOCOL_ERR_RESET) {
-						// RFC 6887: [The client] MUST wait a random amount of time between 0 and 5 seconds
+						// RFC 6887: [The client] MUST wait a random amount of time between 0 and 5
+						// seconds
 						return PROTOCOL_ERR_RESET_DELAY;
 					}
 				} else {         // sock
