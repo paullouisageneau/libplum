@@ -45,9 +45,10 @@ static int find_empty_mapping_index(client_t *client) {
 }
 
 static void import_mapping(const plum_mapping_t *mapping, plum_mapping_callback_t callback,
-                           client_mapping_t *cm) {
+                           void *user_ptr, client_mapping_t *cm) {
 	memset(cm, 0, sizeof(*cm));
 	cm->callback = callback;
+	cm->user_ptr = user_ptr;
 	cm->protocol = mapping->protocol;
 	cm->internal_port = mapping->internal_port;
 	cm->refresh_timestamp = 0;
@@ -128,7 +129,7 @@ void client_destroy(client_t *client) {
 }
 
 int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
-                       plum_mapping_callback_t callback) {
+                       plum_mapping_callback_t callback, void *user_ptr) {
 	if (!mapping)
 		return -1;
 
@@ -153,7 +154,7 @@ int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
 	}
 
 	client_mapping_t *cm = client->mappings + i;
-	import_mapping(mapping, callback, cm);
+	import_mapping(mapping, callback, user_ptr, cm);
 	cm->state = PLUM_STATE_PENDING;
 
 	PLUM_LOG_INFO("Added mapping %d for internal port %hu (callback=%d)", i, cm->internal_port,
@@ -207,7 +208,7 @@ static void trigger_mapping_callback(const client_mapping_t *cm, int i) {
 	plum_mapping_t mapping;
 	export_mapping(cm, &mapping);
 	if (cm->callback)
-		cm->callback(i, cm->state, &mapping);
+		cm->callback(i, cm->state, &mapping, cm->user_ptr);
 }
 
 static void update_mapping(client_mapping_t *cm, int i, plum_state_t state,

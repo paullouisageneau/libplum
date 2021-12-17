@@ -32,7 +32,7 @@ plum_init();
 
 ### Create a mapping
 ```c
-void mapping_callback(int id, plum_state_t state, const plum_mapping_t *mapping) {
+void mapping_callback(int id, plum_state_t state, const plum_mapping_t *mapping, void *user_ptr) {
     // Called from another thread
     if (state == PLUM_STATE_SUCCESS)
         printf("External address: %s:%hu\n", mapping->external_host, mapping->external_port);
@@ -45,7 +45,8 @@ memset(&mapping, 0, sizeof(mapping));
 mapping.protocol = PLUM_IP_PROTOCOL_TCP;
 mapping.internal_port = 8000;
 
-int id = plum_create_mapping(&mapping, mapping_callback);
+void *user_ptr = NULL;
+int id = plum_create_mapping(&mapping, mapping_callback, user_ptr);
 ```
 
 ### Destroy a mapping
@@ -97,4 +98,3 @@ $ nmake
 ```bash
 $ make
 ```
-
