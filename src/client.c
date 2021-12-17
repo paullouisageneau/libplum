@@ -45,13 +45,12 @@ static int find_empty_mapping_index(client_t *client) {
 }
 
 static void import_mapping(const plum_mapping_t *mapping, plum_mapping_callback_t callback,
-                           void *user_ptr, client_mapping_t *cm) {
+                           client_mapping_t *cm) {
 	memset(cm, 0, sizeof(*cm));
 	cm->callback = callback;
-	cm->user_ptr = user_ptr;
 	cm->protocol = mapping->protocol;
 	cm->internal_port = mapping->internal_port;
-	cm->refresh_timestamp = 0;
+	cm->user_ptr = mapping->user_ptr;
 
 	if (*mapping->external_host == '\0' ||
 	    addr_set(AF_UNSPEC, mapping->external_host, mapping->external_port, &cm->suggested_addr) <
@@ -65,6 +64,7 @@ static void export_mapping(const client_mapping_t *cm, plum_mapping_t *mapping) 
 	memset(mapping, 0, sizeof(*mapping));
 	mapping->protocol = cm->protocol;
 	mapping->internal_port = cm->internal_port;
+	mapping->user_ptr = cm->user_ptr;
 	if (cm->external_addr.len > 0) {
 		mapping->external_port = addr_get_port((const struct sockaddr *)&cm->external_addr.addr);
 		addr_get_host((const struct sockaddr *)&cm->external_addr.addr, mapping->external_host,
@@ -129,7 +129,7 @@ void client_destroy(client_t *client) {
 }
 
 int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
-                       plum_mapping_callback_t callback, void *user_ptr) {
+                       plum_mapping_callback_t callback) {
 	if (!mapping)
 		return -1;
 
@@ -154,8 +154,9 @@ int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
 	}
 
 	client_mapping_t *cm = client->mappings + i;
-	import_mapping(mapping, callback, user_ptr, cm);
+	import_mapping(mapping, callback, cm);
 	cm->state = PLUM_STATE_PENDING;
+	cm->refresh_timestamp = 0;
 
 	PLUM_LOG_INFO("Added mapping %d for internal port %hu (callback=%d)", i, cm->internal_port,
 	              (int)(cm->callback != NULL));
@@ -208,7 +209,7 @@ static void trigger_mapping_callback(const client_mapping_t *cm, int i) {
 	plum_mapping_t mapping;
 	export_mapping(cm, &mapping);
 	if (cm->callback)
-		cm->callback(i, cm->state, &mapping, cm->user_ptr);
+		cm->callback(i, cm->state, &mapping);
 }
 
 static void update_mapping(client_mapping_t *cm, int i, plum_state_t state,

@@ -28,8 +28,7 @@ static void sleep(unsigned int secs) { Sleep(secs * 1000); }
 #include <unistd.h> // for sleep
 #endif
 
-static void mapping_callback(int id, plum_state_t state, const plum_mapping_t *mapping,
-                             void *user_ptr) {
+static void mapping_callback(int id, plum_state_t state, const plum_mapping_t *mapping) {
 	printf("Mapping %d: state=%d\n", id, (int)state);
 	switch (state) {
 	case PLUM_STATE_SUCCESS:
@@ -56,7 +55,7 @@ int main(int argc, char **argv) {
 	mapping.protocol = PLUM_IP_PROTOCOL_TCP;
 	mapping.internal_port = 8000;
 
-	int id = plum_create_mapping(&mapping, mapping_callback, NULL);
+	int id = plum_create_mapping(&mapping, mapping_callback);
 
 	sleep(30);
 

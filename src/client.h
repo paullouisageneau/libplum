@@ -56,7 +56,7 @@ typedef struct {
 client_t *client_create(void);
 void client_destroy(client_t *client);
 int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
-                       plum_mapping_callback_t callback, void *user_ptr);
+                       plum_mapping_callback_t callback);
 int client_get_mapping(client_t *client, int i, plum_state_t *state, plum_mapping_t *mapping);
 int client_remove_mapping(client_t *client, int i);
 void client_run(client_t *client);

@@ -53,15 +53,14 @@ int plum_cleanup() {
 	return PLUM_ERR_SUCCESS;
 }
 
-int plum_create_mapping(const plum_mapping_t *mapping, plum_mapping_callback_t callback,
-                        void *user_ptr) {
+int plum_create_mapping(const plum_mapping_t *mapping, plum_mapping_callback_t callback) {
 	if (!client)
 		return PLUM_ERR_FAILED;
 
 	if (!mapping)
 		return PLUM_ERR_INVALID;
 
-	int id = client_add_mapping(client, mapping, callback, user_ptr);
+	int id = client_add_mapping(client, mapping, callback);
 	if (id < 0)
 		return PLUM_ERR_FAILED;
 
