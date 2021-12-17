@@ -224,18 +224,6 @@ static int change_mapping_state(client_mapping_t *cm, int i, plum_state_t state,
 	return 0;
 }
 
-static void reset_mappings(client_t *client) {
-	// Reset timestamps and records
-	mutex_lock(&client->mappings_mutex);
-	for (int i = 0; i < client->mappings_size; ++i) {
-		client_mapping_t *cm = client->mappings + i;
-		cm->refresh_timestamp = 0;
-		free(cm->impl_record);
-		cm->impl_record = NULL;
-	}
-	mutex_unlock(&client->mappings_mutex);
-}
-
 static bool has_destroying_mappings(client_t *client) {
 	mutex_lock(&client->mappings_mutex);
 	for (int i = 0; i < client->mappings_size; ++i) {
@@ -245,6 +233,25 @@ static bool has_destroying_mappings(client_t *client) {
 	}
 	mutex_unlock(&client->mappings_mutex);
 	return false;
+}
+
+static void reset_protocol(client_t *client) {
+	// protocol_mutex must be locked
+	if (client->protocol) {
+		client->protocol->cleanup(&client->protocol_state);
+		client->protocol = NULL;
+	}
+	// Also reset timestamps and records
+	mutex_lock(&client->mappings_mutex);
+	for (int i = 0; i < client->mappings_size; ++i) {
+		client_mapping_t *cm = client->mappings + i;
+		cm->refresh_timestamp = 0;
+		free(cm->impl_record);
+		cm->impl_record = NULL;
+		if(cm->state == PLUM_STATE_DESTROYING)
+			cm->state = PLUM_STATE_DESTROYED; // as good as destroyed now
+	}
+	mutex_unlock(&client->mappings_mutex);
 }
 
 void client_run(client_t *client) {
@@ -294,11 +301,7 @@ void client_run(client_t *client) {
 			old_local = local;
 			if (changed) {
 				PLUM_LOG_INFO("Local address changed, restarting");
-				reset_mappings(client);
-				if (client->protocol) {
-					client->protocol->cleanup(&client->protocol_state);
-					client->protocol = NULL;
-				}
+				reset_protocol(client);
 				protocol_num = 0;
 			}
 
@@ -325,13 +328,11 @@ void client_run(client_t *client) {
 				continue;
 			}
 
+			// Protocol reset or failure
+			reset_protocol(client);
+
 			if (client->is_stopping)
 				break;
-
-			// Protocol reset or failure
-			reset_mappings(client);
-			client->protocol->cleanup(&client->protocol_state);
-			client->protocol = NULL;
 
 			if (err == PROTOCOL_ERR_RESET || err == PROTOCOL_ERR_RESET_DELAY) {
 				PLUM_LOG_DEBUG("Protocol was reset");
@@ -345,11 +346,7 @@ void client_run(client_t *client) {
 			++protocol_num;
 		}
 
-		reset_mappings(client);
-		if (client->protocol) {
-			client->protocol->cleanup(&client->protocol_state);
-			client->protocol = NULL;
-		}
+		reset_protocol(client);
 
 		if (client->is_stopping)
 			break;
