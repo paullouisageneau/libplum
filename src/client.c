@@ -50,7 +50,6 @@ static void import_mapping(const plum_mapping_t *mapping, plum_mapping_callback_
 	cm->callback = callback;
 	cm->protocol = mapping->protocol;
 	cm->internal_port = mapping->internal_port;
-	cm->state = PLUM_STATE_PENDING;
 	cm->refresh_timestamp = 0;
 
 	if (*mapping->external_host == '\0' ||
@@ -155,6 +154,7 @@ int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
 
 	client_mapping_t *cm = client->mappings + i;
 	import_mapping(mapping, callback, cm);
+	cm->state = PLUM_STATE_PENDING;
 
 	PLUM_LOG_INFO("Added mapping %d for internal port %hu (callback=%d)", i, cm->internal_port,
 	              (int)(cm->callback != NULL));
@@ -203,25 +203,36 @@ int client_remove_mapping(client_t *client, int i) {
 	return 0;
 }
 
-static int trigger_mapping_callback(const client_mapping_t *cm, int i) {
-	if (cm->state == PLUM_STATE_DESTROYED)
-		return -1;
-
+static void trigger_mapping_callback(const client_mapping_t *cm, int i) {
 	plum_mapping_t mapping;
 	export_mapping(cm, &mapping);
 	if (cm->callback)
 		cm->callback(i, cm->state, &mapping);
-
-	return 0;
 }
 
-static int change_mapping_state(client_mapping_t *cm, int i, plum_state_t state,
-                                bool external_addr_changed) {
-	if (state != cm->state || (state == PLUM_STATE_SUCCESS && external_addr_changed)) {
-		cm->state = state;
-		return trigger_mapping_callback(cm, i);
+static void update_mapping(client_mapping_t *cm, int i, plum_state_t state,
+                           const addr_record_t *external) {
+	bool changed = false;
+	if (state == PLUM_STATE_SUCCESS && external) {
+		changed = !addr_record_is_equal(&cm->external_addr, external, true);
+		cm->external_addr = *external;
+	} else {
+		memset(&cm->external_addr, 0, sizeof(cm->external_addr));
 	}
-	return 0;
+
+	if (state != cm->state || changed) {
+		cm->state = state;
+
+		if (state != PLUM_STATE_PENDING && state != PLUM_STATE_DESTROYING)
+			trigger_mapping_callback(cm, i);
+	}
+}
+
+static void destroy_mapping(client_mapping_t *cm, int i) {
+	memset(&cm->external_addr, 0, sizeof(cm->external_addr));
+	update_mapping(cm, i, PLUM_STATE_DESTROYED, NULL);
+	free(cm->impl_record);
+	memset(cm, 0, sizeof(*cm));
 }
 
 static bool has_destroying_mappings(client_t *client) {
@@ -237,10 +248,14 @@ static bool has_destroying_mappings(client_t *client) {
 
 static void reset_protocol(client_t *client) {
 	// protocol_mutex must be locked
+
+	PLUM_LOG_VERBOSE("Resetting protocol state");
+
 	if (client->protocol) {
 		client->protocol->cleanup(&client->protocol_state);
 		client->protocol = NULL;
 	}
+
 	// Also reset timestamps and records
 	mutex_lock(&client->mappings_mutex);
 	for (int i = 0; i < client->mappings_size; ++i) {
@@ -248,8 +263,11 @@ static void reset_protocol(client_t *client) {
 		cm->refresh_timestamp = 0;
 		free(cm->impl_record);
 		cm->impl_record = NULL;
-		if(cm->state == PLUM_STATE_DESTROYING)
-			cm->state = PLUM_STATE_DESTROYED; // as good as destroyed now
+		memset(&cm->external_addr, 0, sizeof(cm->external_addr));
+		if (cm->state == PLUM_STATE_DESTROYING)
+			destroy_mapping(cm, i); // as good as destroyed now
+		else
+			update_mapping(cm, i, PLUM_STATE_PENDING, NULL);
 	}
 	mutex_unlock(&client->mappings_mutex);
 }
@@ -283,9 +301,7 @@ void client_run(client_t *client) {
 					client_mapping_t *cm = client->mappings + i;
 					addr_record_t external = local;
 					addr_set_port((struct sockaddr *)&external, cm->internal_port);
-					bool changed = !addr_record_is_equal(&cm->external_addr, &external, true);
-					cm->external_addr = external;
-					change_mapping_state(cm, i, PLUM_STATE_SUCCESS, changed);
+					update_mapping(cm, i, PLUM_STATE_SUCCESS, &external);
 				}
 				mutex_unlock(&client->mappings_mutex);
 
@@ -356,7 +372,7 @@ void client_run(client_t *client) {
 		for (int i = 0; i < client->mappings_size; ++i) {
 			client_mapping_t *cm = client->mappings + i;
 			memset(&cm->external_addr, 0, sizeof(cm->external_addr));
-			change_mapping_state(cm, i, PLUM_STATE_FAILURE, false);
+			update_mapping(cm, i, PLUM_STATE_FAILURE, NULL);
 		}
 		mutex_unlock(&client->mappings_mutex);
 
@@ -403,9 +419,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 
 				mutex_lock(&client->mappings_mutex);
 				client_mapping_t *cm = client->mappings + i;
-				change_mapping_state(cm, i, PLUM_STATE_DESTROYED, false);
-				free(cm->impl_record);
-				memset(cm, 0, sizeof(*cm));
+				destroy_mapping(cm, i);
 				mutex_unlock(&client->mappings_mutex);
 				continue;
 			}
@@ -428,13 +442,10 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 
 				mutex_lock(&client->mappings_mutex);
 				client_mapping_t *cm = client->mappings + i;
-				bool changed =
-				    !addr_record_is_equal(&cm->external_addr, &output.external_addr, true);
-				cm->external_addr = output.external_addr;
-				cm->refresh_timestamp = output.refresh_timestamp;
 				free(cm->impl_record);
 				cm->impl_record = output.impl_record;
-				change_mapping_state(cm, i, PLUM_STATE_SUCCESS, changed);
+				cm->refresh_timestamp = output.refresh_timestamp;
+				update_mapping(cm, i, PLUM_STATE_SUCCESS, &output.external_addr);
 				mutex_unlock(&client->mappings_mutex);
 			}
 
