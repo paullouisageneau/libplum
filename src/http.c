@@ -27,8 +27,8 @@
 #define HTTP_MAX_RECORDS 4
 #define HTTP_MAX_REDIRECTIONS 5
 
-#define DEFAULT_BUFFER_SIZE 2 * 1024
-#define MAX_BUFFER_SIZE 2 * 1024 * 1024
+#define DEFAULT_BUFFER_SIZE 10 * 1024
+#define MAX_BUFFER_SIZE 10 * 1024 * 1024
 
 static int http_perform_rec(const http_request_t *request, http_response_t *response,
                  timestamp_t end_timestamp, int redirections) {
@@ -113,7 +113,7 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 		               method_str, *path != '\0' ? path : "/", host,
 		               request->headers ? request->headers : "");
 
-	if (len < 0 || len >= (int)size) {
+	if (len < 0 || (size_t)len >= size) {
 		PLUM_LOG_WARN("Failed to format HTTP request");
 		goto error;
 	}
@@ -250,3 +250,4 @@ void http_free(http_response_t *response) {
 	response->body = NULL;
 	response->body_size = 0;
 }
+

@@ -19,19 +19,27 @@
 #include "plum.h"
 #include "addr.h"
 #include "client.h"
+#include "dummytls.h"
 #include "log.h"
 #include "random.h"
 
 #include <string.h>
 
-client_t *client;
+static client_t *client = NULL;
 
-int plum_init() {
+int plum_init(const plum_config_t *config) {
 	if (client)
 		return PLUM_ERR_FAILED;
 
 	plum_log_init();
+	plum_set_log_level(config->log_level);
+	plum_set_log_handler(config->log_callback);
+
 	plum_random_init();
+
+	dummytls_init();
+	if (config->dummytls_domain)
+		dummytls_set_domain(config->dummytls_domain);
 
 	client = client_create();
 	if (!client)
@@ -46,6 +54,8 @@ int plum_cleanup() {
 
 	client_destroy(client);
 	client = NULL;
+
+	dummytls_cleanup();
 
 	plum_log_cleanup();
 	plum_random_cleanup();
@@ -88,6 +98,26 @@ int plum_destroy_mapping(int id) {
 		return PLUM_ERR_INVALID;
 
 	if (client_remove_mapping(client, id) < 0)
+		return PLUM_ERR_NOT_AVAIL;
+
+	return PLUM_ERR_SUCCESS;
+}
+
+int plum_set_dummytls_domain(const char *domain) {
+	if (dummytls_set_domain(domain) < 0)
+		return PLUM_ERR_FAILED;
+
+	return PLUM_ERR_SUCCESS;
+}
+
+int plum_get_dummytls_cert(plum_dummytls_cert_type_t type, char *buffer, size_t size) {
+	if (!buffer && size)
+		return PLUM_ERR_INVALID;
+
+	if (dummytls_renew_certs() < 0)
+		return PLUM_ERR_FAILED;
+
+	if (dummytls_get_cert(type, buffer, size) < 0)
 		return PLUM_ERR_NOT_AVAIL;
 
 	return PLUM_ERR_SUCCESS;

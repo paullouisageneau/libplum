@@ -166,3 +166,4 @@ const char *xml_find_matching_child(const char *str, const char *tag, const char
 
 	return NULL;
 }
+
