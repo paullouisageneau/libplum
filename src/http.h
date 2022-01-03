@@ -22,6 +22,9 @@
 
 // Trivial implementation of an HTTP 1.0 client
 
+#define HTTP_MAX_HOST_LEN 256
+#define HTTP_MAX_URL_LEN 1024
+
 typedef enum http_method {
 	HTTP_METHOD_GET,
 	HTTP_METHOD_POST,
@@ -39,6 +42,7 @@ typedef struct http_request {
 typedef struct http_response {
 	char *headers;
 	char *body;
+	size_t body_size;
 } http_response_t;
 
 int http_perform(const http_request_t *request, http_response_t *response, timestamp_t end_timestamp);
