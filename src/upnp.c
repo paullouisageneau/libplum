@@ -273,8 +273,8 @@ int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t
 			PLUM_LOG_INFO("Found UPnP-IGD device: %s", tmp);
 		}
 
-		char location_url[UPNP_MAX_URL_LEN];
-		if (header_extract(buffer, "LOCATION", location_url, UPNP_MAX_URL_LEN) <= 0) {
+		char location_url[HTTP_MAX_URL_LEN];
+		if (header_extract(buffer, "LOCATION", location_url, HTTP_MAX_URL_LEN) <= 0) {
 			PLUM_LOG_WARN("Missing location for UPnP-IGD device");
 			continue;
 		}
@@ -337,25 +337,25 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
 		return PROTOCOL_ERR_PROTOCOL_FAILED;
 	}
 
-	char control_url[UPNP_MAX_URL_LEN];
-	if (xml_extract(service, "controlURL", control_url, UPNP_MAX_URL_LEN) <= 0) {
+	char control_url[HTTP_MAX_URL_LEN];
+	if (xml_extract(service, "controlURL", control_url, HTTP_MAX_URL_LEN) <= 0) {
 		PLUM_LOG_WARN("Missing control URL for UPnP-IGN service");
 		http_free(&response);
 		return PROTOCOL_ERR_PROTOCOL_FAILED;
 	}
 
 	if (control_url[0] == '/') {
-		char base_url[UPNP_MAX_URL_LEN];
-		assert(strlen(impl->location_url) < UPNP_MAX_URL_LEN);
+		char base_url[HTTP_MAX_URL_LEN];
+		assert(strlen(impl->location_url) < HTTP_MAX_URL_LEN);
 		strcpy(base_url, impl->location_url);
 		char *p = strstr(base_url, "://");
 		p = strchr(p ? p + 3 : base_url, '/');
 		if (p)
 			*p = '\0';
 
-		char tmp[UPNP_MAX_URL_LEN];
-		ret = snprintf(tmp, UPNP_MAX_URL_LEN, "%s%s", base_url, control_url);
-		if (ret < 0 || ret >= UPNP_MAX_URL_LEN) {
+		char tmp[HTTP_MAX_URL_LEN];
+		ret = snprintf(tmp, HTTP_MAX_URL_LEN, "%s%s", base_url, control_url);
+		if (ret < 0 || ret >= HTTP_MAX_URL_LEN) {
 			PLUM_LOG_WARN("WANIPConnection service control URL is too long");
 			http_free(&response);
 			return PROTOCOL_ERR_PROTOCOL_FAILED;

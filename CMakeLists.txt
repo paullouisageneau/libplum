@@ -22,6 +22,7 @@ endif()
 set(LIBPLUM_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/src/addr.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/client.c
+	${CMAKE_CURRENT_SOURCE_DIR}/src/dummytls.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/http.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/log.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/natpmp.c

@@ -44,10 +44,26 @@ extern "C" {
 #define PLUM_ERR_FAILED -2    // runtime error
 #define PLUM_ERR_NOT_AVAIL -3 // element not available
 
-// Port Mapping
+typedef enum {
+	PLUM_LOG_LEVEL_VERBOSE = 0,
+	PLUM_LOG_LEVEL_DEBUG = 1,
+	PLUM_LOG_LEVEL_INFO = 2,
+	PLUM_LOG_LEVEL_WARN = 3,
+	PLUM_LOG_LEVEL_ERROR = 4,
+	PLUM_LOG_LEVEL_FATAL = 5,
+	PLUM_LOG_LEVEL_NONE = 6
+} plum_log_level_t;
 
-PLUM_EXPORT int plum_init();
-PLUM_EXPORT int plum_cleanup();
+typedef void (*plum_log_callback_t)(plum_log_level_t level, const char *message);
+
+typedef struct {
+	plum_log_level_t log_level;
+	plum_log_callback_t log_callback; // NULL means stdout
+	const char *dummytls_domain;      // NULL means disabled
+} plum_config_t;
+
+PLUM_EXPORT int plum_init(const plum_config_t *config);
+PLUM_EXPORT int plum_cleanup(void);
 
 typedef enum {
 	PLUM_IP_PROTOCOL_TCP = 0,
@@ -62,7 +78,7 @@ typedef enum {
 	PLUM_STATE_DESTROYING = 4
 } plum_state_t;
 
-#define PLUM_MAX_HOST_LEN 64
+#define PLUM_MAX_HOST_LEN 256
 
 typedef struct {
 	plum_ip_protocol_t protocol;
@@ -75,26 +91,19 @@ typedef struct {
 // Callback will be called on SUCCESS, FAILURE, and DESTROYED
 typedef void (*plum_mapping_callback_t)(int id, plum_state_t state, const plum_mapping_t *mapping);
 
-PLUM_EXPORT int plum_create_mapping(const plum_mapping_t *mapping, plum_mapping_callback_t callback);
+PLUM_EXPORT int plum_create_mapping(const plum_mapping_t *mapping,
+                                    plum_mapping_callback_t callback);
 PLUM_EXPORT int plum_query_mapping(int id, plum_state_t *state, plum_mapping_t *mapping);
 PLUM_EXPORT int plum_destroy_mapping(int id);
 
-// Logging
-
 typedef enum {
-	PLUM_LOG_LEVEL_VERBOSE = 0,
-	PLUM_LOG_LEVEL_DEBUG = 1,
-	PLUM_LOG_LEVEL_INFO = 2,
-	PLUM_LOG_LEVEL_WARN = 3,
-	PLUM_LOG_LEVEL_ERROR = 4,
-	PLUM_LOG_LEVEL_FATAL = 5,
-	PLUM_LOG_LEVEL_NONE = 6
-} plum_log_level_t;
+	PLUM_DUMMYTLS_PEM_CERT = 0,
+	PLUM_DUMMYTLS_PEM_CHAIN = 1,
+	PLUM_DUMMYTLS_PEM_FULLCHAIN = 2,
+	PLUM_DUMMYTLS_PEM_PRIVKEY = 3
+} plum_dummytls_cert_type_t;
 
-typedef void (*plum_log_cb_t)(plum_log_level_t level, const char *message);
-
-PLUM_EXPORT void plum_set_log_level(plum_log_level_t level);
-PLUM_EXPORT void plum_set_log_handler(plum_log_cb_t cb);
+PLUM_EXPORT int plum_get_dummytls_cert(plum_dummytls_cert_type_t type, char *buffer, size_t size);
 
 #ifdef __cplusplus
 }

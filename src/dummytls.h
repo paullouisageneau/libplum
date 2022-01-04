@@ -16,35 +16,23 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#ifndef PLUM_DUMMYTLS_H
+#define PLUM_DUMMYTLS_H
+
+#include "plum.h"
+#include "socket.h"
+#include "thread.h"
 #include "timestamp.h"
 
-#include <stdlib.h>
+#define DUMMYTLS_MAX_DOMAIN_LEN 256
+#define DUMMYTLS_MAX_URL_LEN (DUMMYTLS_MAX_DOMAIN_LEN + 32)
 
-// Trivial implementation of an HTTP 1.0 client
+void dummytls_init(void);
+void dummytls_cleanup(void);
 
-#define HTTP_MAX_HOST_LEN 256
-#define HTTP_MAX_URL_LEN 1024
+int dummytls_set_domain(const char *domain);
+int dummytls_get_host(const struct sockaddr *sa, char *buffer, size_t size);
+int dummytls_get_cert(plum_dummytls_cert_type_t type, char *buffer, size_t size);
+int dummytls_renew_certs(void);
 
-typedef enum http_method {
-	HTTP_METHOD_GET,
-	HTTP_METHOD_POST,
-} http_method_t;
-
-typedef struct http_request {
-	http_method_t method;
-	const char *url;
-	const char *headers;
-	const char *body;
-	const char *body_type;
-	size_t body_size;
-} http_request_t;
-
-typedef struct http_response {
-	char *headers;
-	char *body;
-	size_t body_size;
-} http_response_t;
-
-int http_perform(const http_request_t *request, http_response_t *response, timestamp_t end_timestamp);
-void http_free(http_response_t *response);
-
+#endif

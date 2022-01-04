@@ -24,14 +24,14 @@
 #include <stdio.h>
 #include <string.h>
 
-#define HTTP_MAX_HOST_LEN 256
 #define HTTP_MAX_RECORDS 4
+#define HTTP_MAX_REDIRECTIONS 5
 
-#define DEFAULT_BUFFER_SIZE 2 * 1024
-#define MAX_BUFFER_SIZE 2 * 1024 * 1024
+#define DEFAULT_BUFFER_SIZE 10 * 1024
+#define MAX_BUFFER_SIZE 10 * 1024 * 1024
 
-int http_perform(const http_request_t *request, http_response_t *response,
-                 timestamp_t end_timestamp) {
+static int http_perform_rec(const http_request_t *request, http_response_t *response,
+                 timestamp_t end_timestamp, int redirections) {
 	const char *scheme = "http://";
 	const size_t scheme_len = strlen(scheme);
 
@@ -113,7 +113,7 @@ int http_perform(const http_request_t *request, http_response_t *response,
 		               method_str, *path != '\0' ? path : "/", host,
 		               request->headers ? request->headers : "");
 
-	if (len < 0 || len >= (int)size) {
+	if (len < 0 || (size_t)len >= size) {
 		PLUM_LOG_WARN("Failed to format HTTP request");
 		goto error;
 	}
@@ -170,32 +170,60 @@ int http_perform(const http_request_t *request, http_response_t *response,
 	int code = 0;
 	if (sscanf(buffer, "HTTP/%*s %d %*s\n%n", &code, &len) != 1 || code <= 0) {
 		PLUM_LOG_WARN("Failed to parse HTTP response status");
+		free(buffer);
 		goto error;
 	}
 
 	PLUM_LOG_DEBUG("Got HTTP response code %d", code);
 
-	const char *headers_begin = buffer + len;
-	const char *headers_end = strstr(headers_begin, "\r\n\r\n");
+	char *headers_begin = buffer + len;
+	char *headers_end = strstr(headers_begin, "\r\n\r\n");
 	if (!headers_end) {
 		PLUM_LOG_WARN("Failed to parse HTTP response headers");
+		free(buffer);
 		goto error;
 	}
 	headers_end += 2;
+	*headers_end = '\0';
+
+	// Handle redirections
+	if (code >= 300 && code <= 399 && redirections < HTTP_MAX_REDIRECTIONS) {
+		char new_url[HTTP_MAX_URL_LEN];
+		char location[HTTP_MAX_URL_LEN];
+		len = header_extract(headers_begin, "Location", location, HTTP_MAX_URL_LEN);
+		if (len > 0) {
+			if(location[0] == '/')
+				len = snprintf(new_url, HTTP_MAX_URL_LEN, "%.*s%s", (int)(path - url), url, location);
+			else
+				strcpy(new_url, location);
+		}
+		if (len > 0 && len <= HTTP_MAX_URL_LEN) {
+			PLUM_LOG_DEBUG("Got HTTP redirection to %s", new_url);
+			http_request_t new_request = *request;
+			new_request.url = new_url;
+			free(buffer);
+			return http_perform_rec(&new_request, response, end_timestamp, redirections + 1);
+		}
+	}
 
 	size_t headers_size = headers_end - headers_begin;
 	response->headers = malloc(headers_size + 1);
 	if (!response->headers) {
 		PLUM_LOG_WARN("Failed to allocate memory for HTTP headers, size=%zu", headers_size + 1);
+		free(buffer);
 		goto error;
 	}
 	memcpy(response->headers, headers_begin, headers_size);
 	response->headers[headers_size] = '\0';
 
-	const char *body_begin = headers_end + 2;
-	size_t body_size = buffer + total_len - body_begin;
-	memmove(buffer, body_begin, body_size);
+	char *body_begin = headers_end + 2;
+	char *body_end = buffer + total_len;
+	response->body_size = body_end - body_begin;
+	memmove(buffer, body_begin, response->body_size);
 	response->body = buffer;
+	response->body[response->body_size] = '\0';
+
+	PLUM_LOG_DEBUG("Got HTTP body of size %zu", response->body_size);
 
 	closesocket(sock);
 	return code;
@@ -204,6 +232,11 @@ error:
 	free(buffer);
 	closesocket(sock);
 	return -1;
+}
+
+int http_perform(const http_request_t *request, http_response_t *response,
+                 timestamp_t end_timestamp) {
+	return http_perform_rec(request, response, end_timestamp, 0);
 }
 
 void http_free(http_response_t *response) {
@@ -215,4 +248,6 @@ void http_free(http_response_t *response) {
 
 	response->headers = NULL;
 	response->body = NULL;
+	response->body_size = 0;
 }
+

@@ -33,8 +33,6 @@
 #define UPNP_QUERY_TIMEOUT 5000 // msecs
 
 #define UPNP_BUFFER_SIZE 2048
-#define UPNP_MAX_URL_LEN 2048
-#define UPNP_MAX_HOST_LEN 256
 
 typedef struct {
 	socket_t sock;

@@ -41,8 +41,8 @@ static const char *log_level_colors[] = {
     "\x1B[97m\x1B[41m" // white on red
 };
 
-static atomic(plum_log_level_t) log_level = ATOMIC_VAR_INIT(PLUM_LOG_LEVEL_WARN);
-static atomic_ptr(void) log_cb = ATOMIC_VAR_INIT(NULL);
+static atomic(plum_log_level_t) log_level = ATOMIC_VAR_INIT(PLUM_LOG_LEVEL_NONE);
+static plum_log_callback_t log_callback = NULL;
 static mutex_t log_mutex;
 
 static bool use_color(void) {
@@ -62,18 +62,22 @@ static int get_localtime(const time_t *t, struct tm *buf) {
 #endif
 }
 
-PLUM_EXPORT void plum_set_log_level(plum_log_level_t level) { atomic_store(&log_level, level); }
-
-PLUM_EXPORT void plum_set_log_handler(plum_log_cb_t cb) {
-	atomic_store(&log_cb, cb);
-}
-
 void plum_log_init() {
 	mutex_init(&log_mutex, 0);
 }
 
 void plum_log_cleanup() {
 	mutex_destroy(&log_mutex);
+}
+
+void plum_set_log_level(plum_log_level_t level) {
+	atomic_store(&log_level, level);
+}
+
+void plum_set_log_handler(plum_log_callback_t callback) {
+	mutex_lock(&log_mutex);
+	log_callback = callback;
+	mutex_unlock(&log_mutex);
 }
 
 bool plum_log_is_enabled(plum_log_level_t level) {
@@ -97,8 +101,7 @@ void plum_log_write(plum_log_level_t level, const char *file, int line, const ch
 	(void)line;
 #endif
 
-	plum_log_cb_t cb = atomic_load(&log_cb);
-	if (cb) {
+	if (log_callback) {
 		char message[BUFFER_SIZE];
 		int len = 0;
 #if !RELEASE
@@ -113,7 +116,7 @@ void plum_log_write(plum_log_level_t level, const char *file, int line, const ch
 			va_end(args);
 		}
 
-		cb(level, message);
+		log_callback(level, message);
 
 	} else {
 		time_t t = time(NULL);

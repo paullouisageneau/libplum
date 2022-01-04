@@ -26,6 +26,9 @@
 void plum_log_init();
 void plum_log_cleanup();
 
+void plum_set_log_level(plum_log_level_t level);
+void plum_set_log_handler(plum_log_callback_t callback);
+
 bool plum_log_is_enabled(plum_log_level_t level);
 void plum_log_write(plum_log_level_t level, const char *file, int line, const char *fmt, ...);
 

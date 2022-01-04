@@ -18,6 +18,7 @@
 
 #include "client.h"
 #include "addr.h"
+#include "dummytls.h"
 #include "log.h"
 #include "net.h"
 #include "pcp.h"
@@ -66,9 +67,10 @@ static void export_mapping(const client_mapping_t *cm, plum_mapping_t *mapping) 
 	mapping->internal_port = cm->internal_port;
 	mapping->user_ptr = cm->user_ptr;
 	if (cm->external_addr.len > 0) {
-		mapping->external_port = addr_get_port((const struct sockaddr *)&cm->external_addr.addr);
-		addr_get_host((const struct sockaddr *)&cm->external_addr.addr, mapping->external_host,
-		              PLUM_MAX_HOST_LEN);
+		const struct sockaddr *sa = (const struct sockaddr *)&cm->external_addr.addr;
+		mapping->external_port = addr_get_port(sa);
+		if (dummytls_get_host(sa, mapping->external_host, PLUM_MAX_HOST_LEN) < 0)
+			addr_get_host(sa, mapping->external_host, PLUM_MAX_HOST_LEN);
 	}
 }
 
