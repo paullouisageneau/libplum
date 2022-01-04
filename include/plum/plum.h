@@ -103,7 +103,7 @@ typedef enum {
 	PLUM_DUMMYTLS_PEM_PRIVKEY = 3
 } plum_dummytls_cert_type_t;
 
-PLUM_EXPORT int plum_get_dummytls_cert(plum_dummytls_cert_type_t type, char *buffer, size_t size);
+PLUM_EXPORT int plum_get_dummytls_certificate(plum_dummytls_cert_type_t type, char *buffer, size_t size);
 
 #ifdef __cplusplus
 }

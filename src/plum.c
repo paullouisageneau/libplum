@@ -110,7 +110,7 @@ int plum_set_dummytls_domain(const char *domain) {
 	return PLUM_ERR_SUCCESS;
 }
 
-int plum_get_dummytls_cert(plum_dummytls_cert_type_t type, char *buffer, size_t size) {
+int plum_get_dummytls_certificate(plum_dummytls_cert_type_t type, char *buffer, size_t size) {
 	if (!buffer && size)
 		return PLUM_ERR_INVALID;
 
