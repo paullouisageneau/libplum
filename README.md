@@ -28,8 +28,10 @@ None!
 
 ### Initialize the library
 ```c
-plum_set_log_level(PLUM_LOG_LEVEL_WARN);
-plum_init();
+plum_config_t config;
+memset(&config, 0, sizeof(config));
+config.log_level = PLUM_LOG_LEVEL_WARN;
+plum_init(&config);
 ```
 
 ### Create a mapping
