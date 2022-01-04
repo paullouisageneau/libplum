@@ -118,7 +118,7 @@ install(FILES ${CMAKE_BINARY_DIR}/LibPlumConfigVersion.cmake
 if(NOT NO_EXPORT_HEADER AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.12")
 	include(GenerateExportHeader)
 	generate_export_header(plum)
-	target_include_directories(plum PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>)
+	target_include_directories(plum PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 	target_compile_definitions(plum PUBLIC -DPLUM_HAS_EXPORT_HEADER)
 	set_target_properties(plum PROPERTIES C_VISIBILITY_PRESET hidden)
 	install(FILES ${PROJECT_BINARY_DIR}/plum_export.h DESTINATION include/plum)
