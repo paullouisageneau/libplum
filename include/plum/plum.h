@@ -104,6 +104,7 @@ typedef enum {
 } plum_dummytls_cert_type_t;
 
 PLUM_EXPORT int plum_get_dummytls_certificate(plum_dummytls_cert_type_t type, char *buffer, size_t size);
+PLUM_EXPORT int plum_get_dummytls_host(const char *address, char *buffer, size_t size);
 
 #ifdef __cplusplus
 }

@@ -122,3 +122,19 @@ int plum_get_dummytls_certificate(plum_dummytls_cert_type_t type, char *buffer, 
 
 	return PLUM_ERR_SUCCESS;
 }
+
+int plum_get_dummytls_host(const char *address, char *buffer, size_t size) {
+	if (!address || (!buffer && size))
+		return PLUM_ERR_INVALID;
+
+	addr_record_t record;
+	const uint16_t dummy_port = 443;
+	if (addr_set(AF_UNSPEC, address, dummy_port, &record) < 0)
+		return PLUM_ERR_INVALID;
+
+	int len = dummytls_get_host((const struct sockaddr *)&record.addr, buffer, size);
+	if (len < 0)
+		return PLUM_ERR_FAILED;
+
+	return len;
+}
