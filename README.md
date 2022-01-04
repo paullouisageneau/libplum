@@ -10,6 +10,8 @@ Under the hood, it implements multiple protocols and automatically detects which
 - NAT Port Mapping Protocol (NAT-PMP, [RFC6886](https://datatracker.ietf.org/doc/html/rfc6886))
 - UPnP Internet Gateway Device Protocol ([UPnP-IGD](https://en.wikipedia.org/wiki/Internet_Gateway_Device_Protocol))
 
+It also contains an integrated client for the [DummyTLS](https://github.com/paullouisageneau/dummytls) service.
+
 libplum is licensed under LGPLv2, see [LICENSE](https://github.com/paullouisageneau/libplum/blob/master/LICENSE).
 
 ![Plum in Rayman (Ubisoft, 1995)](https://github.com/paullouisageneau/libplum/blob/master/plum.gif?raw=true)
