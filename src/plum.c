@@ -117,10 +117,11 @@ int plum_get_dummytls_certificate(plum_dummytls_cert_type_t type, char *buffer, 
 	if (dummytls_renew_certs() < 0)
 		return PLUM_ERR_FAILED;
 
-	if (dummytls_get_cert(type, buffer, size) < 0)
+	int len = dummytls_get_cert(type, buffer, size);
+	if (len < 0)
 		return PLUM_ERR_NOT_AVAIL;
 
-	return PLUM_ERR_SUCCESS;
+	return len;
 }
 
 int plum_get_dummytls_host(const char *address, char *buffer, size_t size) {
