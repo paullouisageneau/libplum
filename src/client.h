@@ -49,12 +49,14 @@ typedef struct {
 	protocol_state_t protocol_state;
 	cond_t protocol_interrupt_cond;
 	mutex_t protocol_mutex;
+	bool is_started;
 	bool is_stopping;
 	thread_t thread;
 } client_t;
 
 client_t *client_create(void);
 void client_destroy(client_t *client);
+int client_start(client_t *client);
 int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
                        plum_mapping_callback_t callback);
 int client_get_mapping(client_t *client, int i, plum_state_t *state, plum_mapping_t *mapping);

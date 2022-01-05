@@ -87,7 +87,7 @@ client_t *client_create(void) {
 		PLUM_LOG_FATAL("Allocation failed for client");
 		return NULL;
 	}
-	memset(client, 0, sizeof(client_t));
+	memset(client, 0, sizeof(*client));
 
 	client->mappings = malloc(DEFAULT_MAPPINGS_SIZE * sizeof(client_mapping_t));
 	if (!client->mappings) {
@@ -103,24 +103,16 @@ client_t *client_create(void) {
 	mutex_init(&client->protocol_mutex, 0);
 	cond_init(&client->protocol_interrupt_cond);
 
-	int ret = thread_init(&client->thread, client_thread_entry, client);
-	if (ret) {
-		PLUM_LOG_FATAL("Thread creation failed, error=%d", ret);
-		mutex_destroy(&client->mappings_mutex);
-		mutex_destroy(&client->protocol_mutex);
-		free(client->mappings);
-		free(client);
-		return NULL;
-	}
-
 	return client;
 }
 
 void client_destroy(client_t *client) {
 	PLUM_LOG_DEBUG("Destroying client...");
 
-	client_interrupt(client, true); // stop
-	thread_join(client->thread, NULL);
+	if (client->is_started) {
+		client_interrupt(client, true); // stop
+		thread_join(client->thread, NULL);
+	}
 
 	mutex_destroy(&client->mappings_mutex);
 	mutex_destroy(&client->protocol_mutex);
@@ -128,6 +120,22 @@ void client_destroy(client_t *client) {
 
 	free(client->mappings);
 	free(client);
+}
+
+int client_start(client_t *client) {
+	if (client->is_started) {
+		mutex_unlock(&client->protocol_mutex);
+		return 0;
+	}
+
+	int ret = thread_init(&client->thread, client_thread_entry, client);
+	if (ret) {
+		PLUM_LOG_FATAL("Thread creation failed, error=%d", ret);
+		return -1;
+	}
+
+	client->is_started = true;
+	return 0;
 }
 
 int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
@@ -476,17 +484,25 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 }
 
 int client_interrupt(client_t *client, bool stop) {
-	PLUM_LOG_DEBUG("Interrupting client");
+	if (!client->is_started) {
+		mutex_unlock(&client->protocol_mutex);
+		return PROTOCOL_ERR_SUCCESS;
+	}
 
-	int err = PROTOCOL_ERR_SUCCESS;
+	PLUM_LOG_DEBUG("Interrupting client");
 	mutex_lock(&client->protocol_mutex);
+
 	if (stop)
 		client->is_stopping = true;
 
-	if (client->protocol)
-		err = client->protocol->interrupt(&client->protocol_state);
-
 	cond_signal(&client->protocol_interrupt_cond);
+
+	if (client->protocol) {
+		int err = client->protocol->interrupt(&client->protocol_state);
+		if (err < 0)
+			return err;
+	}
+
 	mutex_unlock(&client->protocol_mutex);
-	return err;
+	return PROTOCOL_ERR_SUCCESS;
 }

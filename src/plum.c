@@ -74,6 +74,10 @@ int plum_create_mapping(const plum_mapping_t *mapping, plum_mapping_callback_t c
 	if (id < 0)
 		return PLUM_ERR_FAILED;
 
+	// Ensure client is started
+	if (client_start(client) < 0)
+		return PLUM_ERR_FAILED;
+
 	return id;
 }
 
