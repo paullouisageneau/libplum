@@ -79,6 +79,7 @@ typedef enum {
 } plum_state_t;
 
 #define PLUM_MAX_HOST_LEN 256
+#define PLUM_MAX_ADDRESS_LEN 64
 
 typedef struct {
 	plum_ip_protocol_t protocol;
@@ -95,6 +96,8 @@ PLUM_EXPORT int plum_create_mapping(const plum_mapping_t *mapping,
                                     plum_mapping_callback_t callback);
 PLUM_EXPORT int plum_query_mapping(int id, plum_state_t *state, plum_mapping_t *mapping);
 PLUM_EXPORT int plum_destroy_mapping(int id);
+
+PLUM_EXPORT int plum_get_local_address(char *buffer, size_t size);
 
 typedef enum {
 	PLUM_DUMMYTLS_PEM_CERT = 0,

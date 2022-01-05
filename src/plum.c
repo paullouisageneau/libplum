@@ -22,6 +22,7 @@
 #include "dummytls.h"
 #include "log.h"
 #include "random.h"
+#include "net.h"
 
 #include <string.h>
 
@@ -107,11 +108,16 @@ int plum_destroy_mapping(int id) {
 	return PLUM_ERR_SUCCESS;
 }
 
-int plum_set_dummytls_domain(const char *domain) {
-	if (dummytls_set_domain(domain) < 0)
+int plum_get_local_address(char *buffer, size_t size) {
+	addr_record_t record;
+	if(net_get_default_interface(AF_INET, &record) < 0)
+		return PLUM_ERR_NOT_AVAIL;
+
+	int len = addr_get_host((const struct sockaddr *)&record.addr, buffer, size);
+	if(len < 0)
 		return PLUM_ERR_FAILED;
 
-	return PLUM_ERR_SUCCESS;
+	return len;
 }
 
 int plum_get_dummytls_certificate(plum_dummytls_cert_type_t type, char *buffer, size_t size) {
