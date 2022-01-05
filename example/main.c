@@ -48,7 +48,7 @@ static void mapping_callback(int id, plum_state_t state, const plum_mapping_t *m
 int main(int argc, char **argv) {
 	plum_config_t config;
 	memset(&config, 0, sizeof(config));
-	config.log_level = PLUM_LOG_LEVEL_VERBOSE;
+	config.log_level = PLUM_LOG_LEVEL_DEBUG;
 	plum_init(&config);
 
 	plum_mapping_t mapping;
