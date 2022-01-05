@@ -28,6 +28,8 @@
 #include <string.h>
 
 int pcp_init(protocol_state_t *state) {
+	PLUM_LOG_VERBOSE("Initializing PCP/NAT-PMP state");
+
 	memset(state, 0, sizeof(*state));
 	state->impl = malloc(sizeof(pcp_impl_t));
 	if (!state->impl) {
@@ -79,6 +81,8 @@ error:
 }
 
 int pcp_cleanup(protocol_state_t *state) {
+	PLUM_LOG_VERBOSE("Cleaning up PCP/NAT-PMP state");
+
 	pcp_impl_t *impl = state->impl;
 	closesocket(impl->sock);
 	closesocket(impl->mcast_sock);
@@ -218,6 +222,7 @@ int pcp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timediff
 			else
 				PLUM_LOG_DEBUG("Success unmapping with PCP");
 
+			free(output.impl_record);
 			return PROTOCOL_ERR_SUCCESS;
 		}
 
@@ -481,12 +486,14 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 		                          &impl->external_addr.len);
 		output->external_addr = impl->external_addr;
 
-		output->impl_record = malloc(PCP_MAP_NONCE_SIZE);
-		if (!output->impl_record) {
-			PLUM_LOG_ERROR("Allocation for nonce record failed");
-			return PROTOCOL_ERR_INSUFF_RESOURCES;
+		if (lifetime != 0) {
+			output->impl_record = malloc(PCP_MAP_NONCE_SIZE);
+			if (!output->impl_record) {
+				PLUM_LOG_ERROR("Allocation for nonce record failed");
+				return PROTOCOL_ERR_INSUFF_RESOURCES;
+			}
+			memcpy(output->impl_record, nonce, PCP_MAP_NONCE_SIZE);
 		}
-		memcpy(output->impl_record, nonce, PCP_MAP_NONCE_SIZE);
 
 		return PROTOCOL_ERR_SUCCESS;
 	}

@@ -333,11 +333,13 @@ void client_run(client_t *client) {
 				protocol_num = 0;
 			}
 
-			if (!client->protocol)
-				client->protocol = protocols + protocol_num;
-
 			// Init and run the protocol
-			int err = client->protocol->init(&client->protocol_state);
+			int err = PROTOCOL_ERR_SUCCESS;
+			if (!client->protocol) {
+				client->protocol = protocols + protocol_num;
+				err = client->protocol->init(&client->protocol_state);
+			}
+
 			if (err == PROTOCOL_ERR_SUCCESS) {
 				mutex_unlock(&client->protocol_mutex);
 				err = client_run_protocol(client, client->protocol, &client->protocol_state,
@@ -374,8 +376,6 @@ void client_run(client_t *client) {
 			++protocol_num;
 		}
 
-		reset_protocol(client);
-
 		if (client->is_stopping)
 			break;
 
@@ -391,6 +391,8 @@ void client_run(client_t *client) {
 		cond_timedwait(&client->protocol_interrupt_cond, &client->protocol_mutex,
 		               CLIENT_RECHECK_PERIOD);
 	}
+
+	reset_protocol(client);
 
 	PLUM_LOG_DEBUG("Exiting client thread");
 	mutex_unlock(&client->protocol_mutex);

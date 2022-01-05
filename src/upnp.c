@@ -32,10 +32,12 @@ static uint16_t random_port() {
 }
 
 int upnp_init(protocol_state_t *state) {
+	PLUM_LOG_VERBOSE("Initializing UPnP state");
+
 	memset(state, 0, sizeof(*state));
 	state->impl = malloc(sizeof(upnp_impl_t));
 	if (!state->impl) {
-		PLUM_LOG_ERROR("Allocation for UPNP state failed");
+		PLUM_LOG_ERROR("Allocation for UPnP state failed");
 		return PROTOCOL_ERR_INSUFF_RESOURCES;
 	}
 
@@ -70,6 +72,8 @@ error:
 }
 
 int upnp_cleanup(protocol_state_t *state) {
+	PLUM_LOG_VERBOSE("Cleaning up UPnP state");
+
 	upnp_impl_t *impl = state->impl;
 	closesocket(impl->sock);
 	free(impl->location_url);
