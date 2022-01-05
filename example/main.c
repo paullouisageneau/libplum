@@ -51,6 +51,10 @@ int main(int argc, char **argv) {
 	config.log_level = PLUM_LOG_LEVEL_DEBUG;
 	plum_init(&config);
 
+	char local[PLUM_MAX_ADDRESS_LEN];
+	if(plum_get_local_address(local, PLUM_MAX_ADDRESS_LEN) > 0)
+		printf("Local address: %s\n", local);
+
 	plum_mapping_t mapping;
 	memset(&mapping, 0, sizeof(mapping));
 	mapping.protocol = PLUM_IP_PROTOCOL_TCP;
