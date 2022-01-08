@@ -486,10 +486,8 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 }
 
 int client_interrupt(client_t *client, bool stop) {
-	if (!client->is_started) {
-		mutex_unlock(&client->protocol_mutex);
+	if (!client->is_started)
 		return PROTOCOL_ERR_SUCCESS;
-	}
 
 	PLUM_LOG_DEBUG("Interrupting client");
 	mutex_lock(&client->protocol_mutex);
@@ -501,8 +499,10 @@ int client_interrupt(client_t *client, bool stop) {
 
 	if (client->protocol) {
 		int err = client->protocol->interrupt(&client->protocol_state);
-		if (err < 0)
+		if (err < 0) {
+			mutex_unlock(&client->protocol_mutex);
 			return err;
+		}
 	}
 
 	mutex_unlock(&client->protocol_mutex);
