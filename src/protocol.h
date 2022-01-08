@@ -34,14 +34,20 @@ struct client_mapping;
 #define PROTOCOL_ERR_INTERRUPTED -2
 #define PROTOCOL_ERR_TIMEOUT -3
 #define PROTOCOL_ERR_RESET -4
-#define PROTOCOL_ERR_RESET_DELAY -5
-#define PROTOCOL_ERR_PROTOCOL_FAILED -6
-#define PROTOCOL_ERR_NETWORK_FAILED -7
-#define PROTOCOL_ERR_INSUFF_RESOURCES -8
-#define PROTOCOL_ERR_UNSUPP_PROTOCOL -9
-#define PROTOCOL_ERR_UNSUPP_VERSION -10
+#define PROTOCOL_ERR_PROTOCOL_FAILED -5
+#define PROTOCOL_ERR_NETWORK_FAILED -6
+#define PROTOCOL_ERR_INSUFF_RESOURCES -7
+#define PROTOCOL_ERR_UNSUPP_PROTOCOL -8
+#define PROTOCOL_ERR_UNSUPP_VERSION -9
+#define PROTOCOL_ERR_SKIPPED -10
+
+typedef enum {
+	PROTOCOL_MAP_STATE_SUCCESS = 0,
+	PROTOCOL_MAP_STATE_FAILURE = 1
+} protocol_map_state_t;
 
 typedef struct {
+	protocol_map_state_t state;
 	addr_record_t external_addr;
 	timestamp_t refresh_timestamp;
 	void *impl_record;
@@ -55,7 +61,7 @@ typedef struct {
 	           protocol_map_output_t *output, timediff_t duration);
 	int (*unmap)(protocol_state_t *state, const struct client_mapping *mapping, timediff_t duration);
 	int (*idle)(protocol_state_t *state, timediff_t duration);
-	int (*interrupt)(protocol_state_t *state);
+	int (*interrupt)(protocol_state_t *state, bool hard);
 } protocol_t;
 
 #endif

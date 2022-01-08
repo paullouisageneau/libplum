@@ -47,10 +47,9 @@ typedef struct {
 	mutex_t mappings_mutex;
 	const protocol_t *protocol;
 	protocol_state_t protocol_state;
-	cond_t protocol_interrupt_cond;
 	mutex_t protocol_mutex;
-	bool is_started;
-	bool is_stopping;
+	atomic(bool) is_started;
+	atomic(bool) is_stopping;
 	thread_t thread;
 } client_t;
 

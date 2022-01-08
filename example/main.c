@@ -37,7 +37,7 @@ static void mapping_callback(int id, plum_state_t state, const plum_mapping_t *m
 		break;
 
 	case PLUM_STATE_FAILURE:
-		printf("Mapping %d: failed", id);
+		printf("Mapping %d: failed\n", id);
 		break;
 
 	default:
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
 	plum_mapping_t mapping;
 	memset(&mapping, 0, sizeof(mapping));
 	mapping.protocol = PLUM_IP_PROTOCOL_TCP;
-	mapping.internal_port = 8000;
+	mapping.internal_port = 8080;
 
 	int id = plum_create_mapping(&mapping, mapping_callback);
 

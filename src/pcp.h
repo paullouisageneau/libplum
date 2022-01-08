@@ -23,6 +23,7 @@
 #include "client.h"
 #include "protocol.h"
 #include "socket.h"
+#include "thread.h"
 #include "timestamp.h"
 
 // RFC 6687 specifies version 2
@@ -35,6 +36,8 @@
 
 #define PCP_MAX_ATTEMPTS 4 // RFC 6886 recommends 9
 
+typedef enum { PCP_INTERRUPT_NONE, PCP_INTERRUPT_SOFT, PCP_INTERRUPT_HARD } pcp_interrupt_t;
+
 typedef struct {
 	socket_t sock;
 	socket_t mcast_sock;
@@ -43,7 +46,7 @@ typedef struct {
 	uint32_t prev_client_time;
 	bool has_prev_server_time;
 	bool use_natpmp;
-	bool interrupted;
+	atomic(pcp_interrupt_t) interrupt;
 } pcp_impl_t;
 
 int pcp_init(protocol_state_t *state);
@@ -53,7 +56,7 @@ int pcp_map(protocol_state_t *state, const client_mapping_t *mapping, protocol_m
             timediff_t duration);
 int pcp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timediff_t duration);
 int pcp_idle(protocol_state_t *state, timediff_t duration);
-int pcp_interrupt(protocol_state_t *state);
+int pcp_interrupt(protocol_state_t *state, bool hard);
 
 int pcp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t end_timestamp);
 int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map_output_t *output,
@@ -62,7 +65,7 @@ int pcp_impl_process_mcast_response(pcp_impl_t *impl, const char *buffer, int le
 int pcp_impl_check_epoch_time(pcp_impl_t *impl, uint32_t new_epoch_time);
 
 int pcp_natpmp_impl_wait_response(pcp_impl_t *impl, char *buffer, addr_record_t *src,
-                                  timestamp_t end_timestamp);
+                                  timestamp_t end_timestamp, bool interruptible);
 
 #pragma pack(push, 1)
 

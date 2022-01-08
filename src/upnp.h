@@ -23,6 +23,7 @@
 #include "client.h"
 #include "protocol.h"
 #include "socket.h"
+#include "thread.h"
 #include "timestamp.h"
 
 #define UPNP_SSDP_ADDRESS "239.255.255.250"
@@ -34,12 +35,14 @@
 
 #define UPNP_BUFFER_SIZE 2048
 
+typedef enum { UPNP_INTERRUPT_NONE, UPNP_INTERRUPT_SOFT, UPNP_INTERRUPT_HARD } upnp_interrupt_t;
+
 typedef struct {
 	socket_t sock;
 	char external_addr_str[ADDR_MAX_STRING_LEN];
 	char *location_url;
 	char *control_url;
-	bool interrupted;
+	atomic(upnp_interrupt_t) interrupt;
 } upnp_impl_t;
 
 int upnp_init(protocol_state_t *state);
@@ -49,7 +52,7 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
              protocol_map_output_t *output, timediff_t duration);
 int upnp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timediff_t duration);
 int upnp_idle(protocol_state_t *state, timediff_t duration);
-int upnp_interrupt(protocol_state_t *state);
+int upnp_interrupt(protocol_state_t *state, bool hard);
 
 int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t end_timestamp,
                     timestamp_t query_end_timestamp);
@@ -61,6 +64,6 @@ int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t ext
                     timestamp_t end_timestamp);
 
 int upnp_impl_wait_response(upnp_impl_t *impl, char *buffer, size_t size, addr_record_t *src,
-                            timestamp_t end_timestamp);
+                            timestamp_t end_timestamp, bool interruptible);
 
 #endif

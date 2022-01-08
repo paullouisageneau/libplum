@@ -60,7 +60,7 @@ int natpmp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_
 	char buffer[PCP_MAX_PAYLOAD_LENGTH];
 	addr_record_t src;
 	int len;
-	while ((len = pcp_natpmp_impl_wait_response(impl, buffer, &src, end_timestamp)) >= 0) {
+	while ((len = pcp_natpmp_impl_wait_response(impl, buffer, &src, end_timestamp, false)) >= 0) {
 		if (len < (int)sizeof(struct natpmp_announce_response)) {
 			PLUM_LOG_WARN("Announce response of length %d is too short", len);
 			continue;
@@ -104,6 +104,8 @@ int natpmp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_
 int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping,
                     protocol_map_output_t *output, uint32_t lifetime, const addr_record_t *gateway,
                     timestamp_t end_timestamp) {
+	memset(output, 0, sizeof(*output));
+
 	if (impl->external_addr.len == 0) {
 		PLUM_LOG_WARN("Attempted to map with NAT-PMP while external address is unknown");
 		return PROTOCOL_ERR_RESET;
@@ -140,7 +142,7 @@ int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping,
 	char buffer[PCP_MAX_PAYLOAD_LENGTH];
 	addr_record_t src;
 	int len;
-	while ((len = pcp_natpmp_impl_wait_response(impl, buffer, &src, end_timestamp)) >= 0) {
+	while ((len = pcp_natpmp_impl_wait_response(impl, buffer, &src, end_timestamp, false)) >= 0) {
 		if (len < (int)sizeof(struct natpmp_map_response)) {
 			PLUM_LOG_WARN("Mapping response of length %d is too short", len);
 			continue;
@@ -167,6 +169,8 @@ int natpmp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping,
 
 		if (lifetime > response_lifetime)
 			lifetime = response_lifetime;
+
+		output->state = PROTOCOL_MAP_STATE_SUCCESS;
 
 		// RFC 6886: The client SHOULD begin trying to renew the mapping halfway to expiry time,
 		// like DHCP.
