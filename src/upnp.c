@@ -33,8 +33,8 @@ static uint16_t random_port() {
 
 int upnp_init(protocol_state_t *state) {
 	PLUM_LOG_VERBOSE("Initializing UPnP state");
-
 	memset(state, 0, sizeof(*state));
+
 	state->impl = malloc(sizeof(upnp_impl_t));
 	if (!state->impl) {
 		PLUM_LOG_ERROR("Allocation for UPnP state failed");
@@ -47,7 +47,7 @@ int upnp_init(protocol_state_t *state) {
 	*impl->external_addr_str = '\0';
 	impl->location_url = NULL;
 	impl->control_url = NULL;
-	impl->interrupted = false;
+	impl->interrupt = ATOMIC_VAR_INIT(UPNP_INTERRUPT_NONE);
 
 	udp_socket_config_t udp_config;
 	memset(&udp_config, 0, sizeof(udp_config));
@@ -123,6 +123,7 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
              protocol_map_output_t *output, timediff_t duration) {
 	upnp_impl_t *impl = state->impl;
 	timestamp_t end_timestamp = current_timestamp() + duration;
+	memset(output, 0, sizeof(*output));
 
 	if (*impl->external_addr_str == '\0') {
 		timestamp_t query_end_timestamp = current_timestamp() + UPNP_QUERY_TIMEOUT;
@@ -158,9 +159,10 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 		                        lifetime, query_end_timestamp);
 		if (err == PROTOCOL_ERR_SUCCESS) {
 			PLUM_LOG_DEBUG("Success mapping with UPnP");
-			addr_set(AF_INET, impl->external_addr_str, external_port, &output->external_addr);
+			output->state = PROTOCOL_MAP_STATE_SUCCESS;
 			output->refresh_timestamp =
 			    current_timestamp() + (lifetime / 2) * 1000; // halfway expiry time
+			addr_set(AF_INET, impl->external_addr_str, external_port, &output->external_addr);
 			return PROTOCOL_ERR_SUCCESS;
 
 		} else if (err > 0) { // if it's an UPnP error code
@@ -206,20 +208,20 @@ int upnp_idle(protocol_state_t *state, timediff_t duration) {
 	char buffer[UPNP_BUFFER_SIZE];
 	addr_record_t src;
 	int len;
-	while ((len = upnp_impl_wait_response(impl, buffer, UPNP_BUFFER_SIZE - 1, &src,
-	                                      end_timestamp)) >= 0) {
+	while ((len = upnp_impl_wait_response(impl, buffer, UPNP_BUFFER_SIZE - 1, &src, end_timestamp,
+	                                      true)) >= 0) {
 		PLUM_LOG_DEBUG("Unexpected datagram, ignoring");
 	}
 
 	return len; // len < 0
 }
 
-int upnp_interrupt(protocol_state_t *state) {
+int upnp_interrupt(protocol_state_t *state, bool hard) {
 	upnp_impl_t *impl = state->impl;
 
-	impl->interrupted = true;
-
 	PLUM_LOG_VERBOSE("Interrupting UPnP operation");
+	atomic_store(&impl->interrupt, hard ? UPNP_INTERRUPT_HARD : UPNP_INTERRUPT_SOFT);
+
 	if (udp_sendto_self(impl->sock, NULL, 0) < 0) {
 		if (sockerrno != SEAGAIN && sockerrno != SEWOULDBLOCK) {
 			PLUM_LOG_WARN("Failed to interrupt UPnP operation by triggering socket, errno=%d",
@@ -262,8 +264,8 @@ int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t
 
 	PLUM_LOG_DEBUG("Waiting for SSDP response...");
 	addr_record_t src;
-	while ((len = upnp_impl_wait_response(impl, buffer, UPNP_BUFFER_SIZE - 1, &src,
-	                                      end_timestamp)) >= 0) {
+	while ((len = upnp_impl_wait_response(impl, buffer, UPNP_BUFFER_SIZE - 1, &src, end_timestamp,
+	                                      false)) >= 0) {
 		buffer[len] = '\0'; // null-terminate the string
 
 		char tmp[UPNP_BUFFER_SIZE];
@@ -570,9 +572,18 @@ int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t ext
 }
 
 int upnp_impl_wait_response(upnp_impl_t *impl, char *buffer, size_t size, addr_record_t *src,
-                            timestamp_t end_timestamp) {
+                            timestamp_t end_timestamp, bool interruptible) {
 	timediff_t timediff;
-	while (!impl->interrupted && (timediff = end_timestamp - current_timestamp()) > 0) {
+	while ((timediff = end_timestamp - current_timestamp()) > 0) {
+
+		upnp_interrupt_t interrupt = atomic_load(&impl->interrupt);
+		if (interrupt == UPNP_INTERRUPT_HARD ||
+		    (interrupt == UPNP_INTERRUPT_SOFT && interruptible)) {
+			PLUM_LOG_VERBOSE("UPnP interrupted");
+			atomic_store(&impl->interrupt, UPNP_INTERRUPT_NONE);
+			return PROTOCOL_ERR_INTERRUPTED;
+		}
+
 		struct pollfd pfd;
 		pfd.fd = impl->sock;
 		pfd.events = POLLIN;
@@ -612,12 +623,6 @@ int upnp_impl_wait_response(upnp_impl_t *impl, char *buffer, size_t size, addr_r
 			if (len > 0) // 0-length datagrams are used to interrupt, ignore them
 				return len;
 		}
-	}
-
-	if (impl->interrupted) {
-		PLUM_LOG_VERBOSE("UPnP interrupted");
-		impl->interrupted = false;
-		return PROTOCOL_ERR_INTERRUPTED;
 	}
 
 	return PROTOCOL_ERR_TIMEOUT;

@@ -29,8 +29,8 @@
 
 int pcp_init(protocol_state_t *state) {
 	PLUM_LOG_VERBOSE("Initializing PCP/NAT-PMP state");
-
 	memset(state, 0, sizeof(*state));
+
 	state->impl = malloc(sizeof(pcp_impl_t));
 	if (!state->impl) {
 		PLUM_LOG_ERROR("Allocation for PCP/NAT-PMP state failed");
@@ -43,7 +43,7 @@ int pcp_init(protocol_state_t *state) {
 	impl->mcast_sock = INVALID_SOCKET;
 	impl->has_prev_server_time = false;
 	impl->use_natpmp = false;
-	impl->interrupted = false;
+	impl->interrupt = ATOMIC_VAR_INIT(PCP_INTERRUPT_NONE);
 
 	udp_socket_config_t udp_config;
 	memset(&udp_config, 0, sizeof(udp_config));
@@ -196,8 +196,6 @@ int pcp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timediff
 
 	const uint32_t lifetime = 0;  // We want to unmap
 	protocol_map_output_t output; // dummy
-	memset(&output, 0, sizeof(output));
-
 	int map_count = 0;
 	timediff_t map_duration = 250;
 	do {
@@ -242,19 +240,19 @@ int pcp_idle(protocol_state_t *state, timediff_t duration) {
 	char buffer[PCP_MAX_PAYLOAD_LENGTH];
 	addr_record_t src;
 	int len;
-	while ((len = pcp_natpmp_impl_wait_response(impl, buffer, &src, end_timestamp)) >= 0) {
+	while ((len = pcp_natpmp_impl_wait_response(impl, buffer, &src, end_timestamp, true)) >= 0) {
 		PLUM_LOG_DEBUG("Unexpected datagram, ignoring");
 	}
 
 	return len; // len < 0
 }
 
-int pcp_interrupt(protocol_state_t *state) {
+int pcp_interrupt(protocol_state_t *state, bool hard) {
 	pcp_impl_t *impl = state->impl;
 
-	impl->interrupted = true;
-
 	PLUM_LOG_VERBOSE("Interrupting PCP/NAT-PMP operation");
+	atomic_store(&impl->interrupt, hard ? PCP_INTERRUPT_HARD : PCP_INTERRUPT_SOFT);
+
 	if (udp_sendto_self(impl->sock, NULL, 0) < 0) {
 		if (sockerrno != SEAGAIN && sockerrno != SEWOULDBLOCK) {
 			PLUM_LOG_WARN(
@@ -323,7 +321,7 @@ int pcp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t e
 	PLUM_LOG_DEBUG("Waiting for PCP announce response...");
 	addr_record_t src;
 	int len;
-	while ((len = pcp_natpmp_impl_wait_response(impl, buffer, &src, end_timestamp)) >= 0) {
+	while ((len = pcp_natpmp_impl_wait_response(impl, buffer, &src, end_timestamp, false)) >= 0) {
 		if (len < (int)sizeof(struct pcp_common_header)) {
 			PLUM_LOG_WARN("Datagram of length %d is too short, ignoring", len);
 			continue;
@@ -367,6 +365,8 @@ int pcp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t e
 
 int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map_output_t *output,
                  uint32_t lifetime, const addr_record_t *gateway, timestamp_t end_timestamp) {
+	memset(output, 0, sizeof(*output));
+
 	char buffer[PCP_MAX_PAYLOAD_LENGTH];
 	if (write_pcp_header((struct pcp_request_header *)buffer, PCP_OPCODE_MAP, lifetime)) {
 		PLUM_LOG_ERROR("Unable to write PCP header");
@@ -374,10 +374,13 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 	}
 
 	char nonce[PCP_MAP_NONCE_SIZE];
-	if (mapping->impl_record)
+	if (mapping->impl_record) {
+		PLUM_LOG_VERBOSE("Using saved nonce for PCP map request");
 		memcpy(nonce, mapping->impl_record, PCP_MAP_NONCE_SIZE);
-	else
+	} else {
+		PLUM_LOG_VERBOSE("Generating new nonce for PCP map request");
 		plum_random(nonce, PCP_MAP_NONCE_SIZE);
+	}
 
 	pcp_protocol_t protocol;
 	switch (mapping->protocol) {
@@ -425,7 +428,7 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 	PLUM_LOG_DEBUG("Waiting for PCP map response...");
 	addr_record_t src;
 	int len;
-	while ((len = pcp_natpmp_impl_wait_response(impl, buffer, &src, end_timestamp)) >= 0) {
+	while ((len = pcp_natpmp_impl_wait_response(impl, buffer, &src, end_timestamp, false)) >= 0) {
 		if (len < (int)sizeof(struct pcp_response_header)) {
 			PLUM_LOG_WARN("Mapping response of length %d is too short", len);
 			continue;
@@ -463,6 +466,8 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 
 		if (lifetime > response_lifetime)
 			lifetime = response_lifetime;
+
+		output->state = PROTOCOL_MAP_STATE_SUCCESS;
 
 		// RFC 6887: The PCP client SHOULD renew the mapping before its expiry time; otherwise, it
 		// will be removed by the PCP server. To reduce the risk of inadvertent synchronization of
@@ -592,9 +597,18 @@ static int process_mcast_response(pcp_impl_t *impl, const char *buffer, int len)
 }
 
 int pcp_natpmp_impl_wait_response(pcp_impl_t *impl, char *buffer, addr_record_t *src,
-                                  timestamp_t end_timestamp) {
+                                  timestamp_t end_timestamp, bool interruptible) {
+	bool is_reset = false;
 	timediff_t timediff;
-	while (!impl->interrupted && (timediff = end_timestamp - current_timestamp()) > 0) {
+	while ((timediff = end_timestamp - current_timestamp()) > 0) {
+
+		pcp_interrupt_t interrupt = atomic_load(&impl->interrupt);
+		if (interrupt == PCP_INTERRUPT_HARD || (interrupt == PCP_INTERRUPT_SOFT && interruptible)) {
+			PLUM_LOG_VERBOSE("PCP/NAT-PMP interrupted");
+			atomic_store(&impl->interrupt, PCP_INTERRUPT_NONE);
+			return PROTOCOL_ERR_INTERRUPTED;
+		}
+
 		struct pollfd pfd[2];
 		pfd[0].fd = impl->mcast_sock;
 		pfd[0].events = POLLIN;
@@ -642,21 +656,22 @@ int pcp_natpmp_impl_wait_response(pcp_impl_t *impl, char *buffer, addr_record_t 
 					if (err == PROTOCOL_ERR_RESET) {
 						// RFC 6887: [The client] MUST wait a random amount of time between 0 and 5
 						// seconds
-						return PROTOCOL_ERR_RESET_DELAY;
+						unsigned int wait_duration = plum_rand32() % 5000;
+						PLUM_LOG_VERBOSE("PCP/NAT-PMP reset, waiting %ums...", wait_duration);
+						end_timestamp = current_timestamp() + wait_duration;
+						is_reset = true;
 					}
-				} else {         // sock
-					if (len > 0) // 0-length datagrams are used to interrupt, ignore them
+				} else {           // sock
+					if (len > 0 && // 0-length datagrams are used to interrupt, ignore them
+					    !is_reset)
 						return len;
 				}
 			}
 		}
 	}
 
-	if (impl->interrupted) {
-		PLUM_LOG_VERBOSE("PCP/NAT-PMP interrupted");
-		impl->interrupted = false;
-		return PROTOCOL_ERR_INTERRUPTED;
-	}
+	if (is_reset)
+		return PROTOCOL_ERR_RESET;
 
 	return PROTOCOL_ERR_TIMEOUT;
 }
