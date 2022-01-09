@@ -159,7 +159,8 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 		if (err == PROTOCOL_ERR_SUCCESS) {
 			PLUM_LOG_DEBUG("Success mapping with UPnP");
 			addr_set(AF_INET, impl->external_addr_str, external_port, &output->external_addr);
-			output->refresh_timestamp = current_timestamp() + lifetime / 2; // halfway expiry time
+			output->refresh_timestamp =
+			    current_timestamp() + (lifetime / 2) * 1000; // halfway expiry time
 			return PROTOCOL_ERR_SUCCESS;
 
 		} else if (err > 0) { // if it's an UPnP error code
