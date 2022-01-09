@@ -46,25 +46,37 @@ static void mapping_callback(int id, plum_state_t state, const plum_mapping_t *m
 }
 
 int main(int argc, char **argv) {
+	// Initialize
 	plum_config_t config;
 	memset(&config, 0, sizeof(config));
 	config.log_level = PLUM_LOG_LEVEL_DEBUG;
 	plum_init(&config);
 
-	char local[PLUM_MAX_ADDRESS_LEN];
-	if(plum_get_local_address(local, PLUM_MAX_ADDRESS_LEN) > 0)
-		printf("Local address: %s\n", local);
+	// Create a first mapping
+	plum_mapping_t mapping1;
+	memset(&mapping1, 0, sizeof(mapping1));
+	mapping1.protocol = PLUM_IP_PROTOCOL_TCP;
+	mapping1.internal_port = 8081;
+	int id1 = plum_create_mapping(&mapping1, mapping_callback);
 
-	plum_mapping_t mapping;
-	memset(&mapping, 0, sizeof(mapping));
-	mapping.protocol = PLUM_IP_PROTOCOL_TCP;
-	mapping.internal_port = 8080;
+	sleep(1); // simulate doing some stuff
 
-	int id = plum_create_mapping(&mapping, mapping_callback);
+	// Create a second mapping
+	plum_mapping_t mapping2;
+	memset(&mapping2, 0, sizeof(mapping2));
+	mapping2.protocol = PLUM_IP_PROTOCOL_TCP;
+	mapping2.internal_port = 8082;
+	int id2 = plum_create_mapping(&mapping2, mapping_callback);
 
-	sleep(10);
+	sleep(10); // simulate doing some stuff
 
-	plum_destroy_mapping(id);
+	// Destroy the first mapping
+	plum_destroy_mapping(id1);
+
+	// Destroy the second mapping
+	plum_destroy_mapping(id2);
+
+	// Clean up
 	plum_cleanup();
 	return 0;
 }
