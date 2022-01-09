@@ -438,7 +438,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 				continue;
 			}
 
-			if (mapping.refresh_timestamp <= current_timestamp()) {
+			if (current_timestamp() >= mapping.refresh_timestamp) {
 				PLUM_LOG_INFO("Performing mapping for internal port %hu", mapping.internal_port);
 
 				protocol_map_output_t output;
