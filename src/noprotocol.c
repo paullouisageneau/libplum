@@ -67,7 +67,7 @@ int noprotocol_map(protocol_state_t *state, const client_mapping_t *mapping,
 
 	addr_record_t local;
 	if (net_get_default_interface(AF_INET, &local) == 0) {
-		if (!addr_is_private((const struct sockaddr *)&local)) {
+		if (addr_is_public((const struct sockaddr *)&local)) {
 			if (PLUM_LOG_INFO_ENABLED) {
 				char local_str[ADDR_MAX_STRING_LEN];
 				addr_record_to_string(&local, local_str, ADDR_MAX_STRING_LEN);

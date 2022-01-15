@@ -36,6 +36,7 @@ int addr_set_port(struct sockaddr *sa, uint16_t port);
 bool addr_is_any(const struct sockaddr *sa);
 bool addr_is_local(const struct sockaddr *sa);
 bool addr_is_private(const struct sockaddr *sa);
+bool addr_is_public(const struct sockaddr *sa);
 bool addr_is_temp_inet6(const struct sockaddr *sa);
 bool addr_unmap_inet6_v4mapped(struct sockaddr *sa, socklen_t *len);
 bool addr_map_inet6_v4mapped(struct sockaddr_storage *ss, socklen_t *len);

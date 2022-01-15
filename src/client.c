@@ -315,7 +315,7 @@ void client_run(client_t *client) {
 		}
 
 		if (protocol_num != PROTOCOL_NOPROTOCOL &&
-		    !addr_is_private((const struct sockaddr *)&local)) {
+		    addr_is_public((const struct sockaddr *)&local)) {
 			PLUM_LOG_DEBUG("Local address is public, skipping discovery");
 			reset_protocol(client);
 			protocol_num = PROTOCOL_NOPROTOCOL;

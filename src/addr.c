@@ -181,6 +181,10 @@ bool addr_is_private(const struct sockaddr *sa) {
 	}
 }
 
+bool addr_is_public(const struct sockaddr *sa) {
+	return !addr_is_private(sa) && !addr_is_local(sa);
+}
+
 bool addr_is_temp_inet6(const struct sockaddr *sa) {
 	if (sa->sa_family != AF_INET6)
 		return false;

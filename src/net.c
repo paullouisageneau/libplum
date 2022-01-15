@@ -66,13 +66,16 @@ int net_get_default_interface(int family, addr_record_t *record) {
 	}
 
 	addr_unmap_inet6_v4mapped((struct sockaddr *)&record->addr, &record->len);
-
 	if (record->addr.ss_family != family) {
 		PLUM_LOG_WARN("getsockname returned unexpected address family");
 		goto error;
 	}
 
 	addr_set_port((struct sockaddr *)&record->addr, 0);
+
+	if (addr_is_local((const struct sockaddr *)&record->addr))
+		goto error;
+
 	closesocket(sock);
 	return 0;
 
