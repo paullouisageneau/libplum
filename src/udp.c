@@ -120,7 +120,7 @@ socket_t udp_create_socket(const udp_socket_config_t *config) {
 		}
 
 		if(ai->ai_addr->sa_family == AF_INET)
-			mreq.imr_interface.s_addr = ((const struct sockaddr_in *)&ai->ai_addr)->sin_addr.s_addr;
+			mreq.imr_interface.s_addr = ((const struct sockaddr_in *)ai->ai_addr)->sin_addr.s_addr;
 		else
 			mreq.imr_interface.s_addr = htonl(INADDR_ANY);
 
