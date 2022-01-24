@@ -89,7 +89,7 @@ typedef struct {
 	void *user_ptr;
 } plum_mapping_t;
 
-// Callback will be called on SUCCESS, FAILURE, and DESTROYED
+// Callback will be called on SUCCESS and FAILURE
 typedef void (*plum_mapping_callback_t)(int id, plum_state_t state, const plum_mapping_t *mapping);
 
 PLUM_EXPORT int plum_create_mapping(const plum_mapping_t *mapping,
