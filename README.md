@@ -8,8 +8,8 @@ libplum has Node.js bindings, see [node-portmapping](https://github.com/paulloui
 
 Under the hood, it implements multiple protocols and automatically detects which one to use:
 
-- Port Control Protocol (PCP, [RFC6887](https://datatracker.ietf.org/doc/html/rfc6887))
-- NAT Port Mapping Protocol (NAT-PMP, [RFC6886](https://datatracker.ietf.org/doc/html/rfc6886))
+- Port Control Protocol (PCP, [RFC6887](https://www.rfc-editor.org/rfc/rfc6887.html))
+- NAT Port Mapping Protocol (NAT-PMP, [RFC6886](https://www.rfc-editor.org/rfc/rfc6886.html))
 - UPnP Internet Gateway Device Protocol ([UPnP-IGD](https://en.wikipedia.org/wiki/Internet_Gateway_Device_Protocol))
 
 It also contains an integrated client for the [DummyTLS](https://github.com/paullouisageneau/dummytls) service.
