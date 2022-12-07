@@ -29,13 +29,19 @@ extern "C" {
 
 #ifdef PLUM_HAS_EXPORT_HEADER
 #include "plum_export.h"
-#endif
-
-#ifndef PLUM_EXPORT
-#ifdef _WIN32
-#define PLUM_EXPORT __declspec(dllexport)
-#else
+#else // no export header
+#ifdef PLUM_STATIC
 #define PLUM_EXPORT
+#else // dynamic library
+#ifdef _WIN32
+#if defined(PLUM_EXPORTS) || defined(plum_EXPORTS)
+#define PLUM_EXPORT __declspec(dllexport) // building the library
+#else
+#define PLUM_EXPORT __declspec(dllimport) // using the library
+#endif
+#else // not WIN32
+#define PLUM_EXPORT
+#endif
 #endif
 #endif
 
