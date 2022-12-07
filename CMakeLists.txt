@@ -118,11 +118,18 @@ install(FILES ${CMAKE_BINARY_DIR}/LibPlumConfigVersion.cmake
 
 if(NOT NO_EXPORT_HEADER AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.12")
 	include(GenerateExportHeader)
-	generate_export_header(plum)
+	generate_export_header(plum
+		EXPORT_MACRO_NAME PLUM_EXPORT
+		NO_EXPORT_MACRO_NAME PLUM_NO_EXPORT
+		DEPRECATED_MACRO_NAME PLUM_DEPRECATED
+		STATIC_DEFINE PLUM_STATIC)
 	target_include_directories(plum PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 	target_compile_definitions(plum PUBLIC -DPLUM_HAS_EXPORT_HEADER)
 	set_target_properties(plum PROPERTIES C_VISIBILITY_PRESET hidden)
 	install(FILES ${PROJECT_BINARY_DIR}/plum_export.h DESTINATION include/plum)
+else()
+	target_compile_definitions(plum PRIVATE PLUM_EXPORTS)
+	target_compile_definitions(plum-static PRIVATE PLUM_EXPORTS)
 endif()
 
 if(NOT MSVC)

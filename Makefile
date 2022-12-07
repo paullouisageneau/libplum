@@ -11,6 +11,8 @@ LIBS=
 INCLUDES=-Iinclude/plum
 LDLIBS=
 
+CFLAGS+=-DPLUM_EXPORTS
+
 ifneq ($(LIBS), "")
 INCLUDES+=$(if $(LIBS),$(shell pkg-config --cflags $(LIBS)),)
 LDLIBS+=$(if $(LIBS), $(shell pkg-config --libs $(LIBS)),)
