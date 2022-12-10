@@ -1,6 +1,6 @@
 # libplum - Multi-protocol Port Mapping client library
 
-[![License: LGPL v2.1 or later](https://img.shields.io/badge/License-LGPL_v2.1_or_later-blue.svg)](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html)
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-blue.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
 [![Build](https://github.com/paullouisageneau/libplum/actions/workflows/build.yml/badge.svg)](https://github.com/paullouisageneau/libplum/actions/workflows/build.yml)
 
 libplum (_Port Lightweight and Universal Mapping_) is a high-level library allowing to forward ports on Network Address Translators (NAT). It is written in C without dependencies and supports POSIX platforms (including GNU/Linux, Android, Apple macOS and iOS) and Microsoft Windows.
@@ -15,7 +15,7 @@ Under the hood, it implements multiple protocols and automatically detects which
 
 It also contains an integrated client for the [DummyTLS](https://github.com/paullouisageneau/dummytls) service.
 
-libplum is licensed under LGPLv2.1 or later, see [LICENSE](https://github.com/paullouisageneau/libplum/blob/master/LICENSE).
+libplum is licensed under MPL 2.0, see [LICENSE](https://github.com/paullouisageneau/libplum/blob/master/LICENSE).
 
 ![Plum in Rayman (Ubisoft, 1995)](https://github.com/paullouisageneau/libplum/blob/master/plum.gif?raw=true)
 
