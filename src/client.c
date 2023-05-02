@@ -102,7 +102,7 @@ client_t *client_create(void) {
 void client_destroy(client_t *client) {
 	PLUM_LOG_DEBUG("Destroying client...");
 
-	if (atomic_load(&client->is_started)) {
+	if (client->is_started) {
 		client_interrupt(client, true); // stop
 		thread_join(client->thread, NULL);
 	}
@@ -115,8 +115,10 @@ void client_destroy(client_t *client) {
 }
 
 int client_start(client_t *client) {
-	if (atomic_load(&client->is_started))
+	if (client->is_started) {
+		PLUM_LOG_WARN("Client is already started");
 		return 0;
+	}
 
 	int ret = thread_init(&client->thread, client_thread_entry, client);
 	if (ret) {
@@ -124,7 +126,7 @@ int client_start(client_t *client) {
 		return -1;
 	}
 
-	atomic_store(&client->is_started, true);
+	client->is_started = true;
 	return 0;
 }
 
@@ -469,7 +471,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 }
 
 int client_interrupt(client_t *client, bool stop) {
-	if (!atomic_load(&client->is_started))
+	if (client->is_started)
 		return PROTOCOL_ERR_SUCCESS;
 
 	PLUM_LOG_DEBUG("Interrupting protocol");
