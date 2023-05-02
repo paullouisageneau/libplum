@@ -115,10 +115,8 @@ void client_destroy(client_t *client) {
 }
 
 int client_start(client_t *client) {
-	if (atomic_load(&client->is_started)) {
-		mutex_unlock(&client->protocol_mutex);
+	if (atomic_load(&client->is_started))
 		return 0;
-	}
 
 	int ret = thread_init(&client->thread, client_thread_entry, client);
 	if (ret) {
