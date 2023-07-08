@@ -97,7 +97,7 @@ void plum_log_write(plum_log_level_t level, const char *file, int line, const ch
 #if !RELEASE
 		len = snprintf(message, BUFFER_SIZE, "%s:%d: ", filename, line);
 		if (len < 0)
-			return;
+			goto __exit;
 #endif
 		if (len < BUFFER_SIZE) {
 			va_list args;
@@ -135,5 +135,7 @@ void plum_log_write(plum_log_level_t level, const char *file, int line, const ch
 		fprintf(stdout, "\n");
 		fflush(stdout);
 	}
+
+__exit:
 	mutex_unlock(&log_mutex);
 }
