@@ -116,7 +116,7 @@ void client_destroy(client_t *client) {
 
 int client_start(client_t *client) {
 	if (client->is_started) {
-		PLUM_LOG_WARN("Client is already started");
+		PLUM_LOG_DEBUG("Client is already started");
 		return 0;
 	}
 
@@ -471,7 +471,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 }
 
 int client_interrupt(client_t *client, bool stop) {
-	if (client->is_started)
+	if (!client->is_started)
 		return PROTOCOL_ERR_SUCCESS;
 
 	PLUM_LOG_DEBUG("Interrupting protocol");
