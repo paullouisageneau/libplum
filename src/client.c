@@ -471,7 +471,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 }
 
 int client_interrupt(client_t *client, bool stop) {
-	if (client->is_started)
+	if (!client->is_started)
 		return PROTOCOL_ERR_SUCCESS;
 
 	PLUM_LOG_DEBUG("Interrupting protocol");
