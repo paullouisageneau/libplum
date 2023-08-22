@@ -116,7 +116,7 @@ void client_destroy(client_t *client) {
 
 int client_start(client_t *client) {
 	if (client->is_started) {
-		PLUM_LOG_WARN("Client is already started");
+		PLUM_LOG_DEBUG("Client is already started");
 		return 0;
 	}
 
