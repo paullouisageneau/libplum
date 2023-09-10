@@ -11,6 +11,8 @@ option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 set(C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+include(GNUInstallDirs)
+
 if(WIN32)
 	add_definitions(-DWIN32_LEAN_AND_MEAN)
 	if (MSVC)
@@ -87,25 +89,25 @@ set_target_properties(plum-static PROPERTIES EXPORT_NAME LibPlumStatic)
 add_library(LibPlum::LibPlumStatic ALIAS plum-static)
 
 install(TARGETS plum EXPORT LibPlumTargets
-	RUNTIME DESTINATION bin
-	LIBRARY DESTINATION lib
-	ARCHIVE DESTINATION lib
+	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+	LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-install(FILES ${LIBPLUM_HEADERS} DESTINATION include/plum)
+install(FILES ${LIBPLUM_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/plum)
 
 # Export Targets
 install(
 	EXPORT LibPlumTargets
 	FILE LibPlumTargets.cmake
 	NAMESPACE LibPlum::
-	DESTINATION lib/cmake/LibPlum
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibPlum
 )
 
 # Export config
 install(
     FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/LibPlumConfig.cmake
-    DESTINATION lib/cmake/LibPlum
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibPlum
 )
 
 include(CMakePackageConfigHelpers)
@@ -114,7 +116,7 @@ write_basic_package_version_file(
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY SameMajorVersion)
 install(FILES ${CMAKE_BINARY_DIR}/LibPlumConfigVersion.cmake
-    DESTINATION lib/cmake/LibPlum)
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibPlum)
 
 if(NOT NO_EXPORT_HEADER AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.12")
 	include(GenerateExportHeader)
@@ -126,7 +128,7 @@ if(NOT NO_EXPORT_HEADER AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.12")
 	target_include_directories(plum PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 	target_compile_definitions(plum PUBLIC -DPLUM_HAS_EXPORT_HEADER)
 	set_target_properties(plum PROPERTIES C_VISIBILITY_PRESET hidden)
-	install(FILES ${PROJECT_BINARY_DIR}/plum_export.h DESTINATION include/plum)
+	install(FILES ${PROJECT_BINARY_DIR}/plum_export.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/plum)
 else()
 	target_compile_definitions(plum PRIVATE PLUM_EXPORTS)
 	target_compile_definitions(plum-static PRIVATE PLUM_EXPORTS)
