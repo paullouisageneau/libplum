@@ -17,22 +17,23 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef PLUM_HAS_EXPORT_HEADER
-#include "plum_export.h"
-#else // no export header
-#ifdef PLUM_STATIC
-#define PLUM_EXPORT
-#else // dynamic library
-#ifdef _WIN32
-#if defined(PLUM_EXPORTS) || defined(plum_EXPORTS)
-#define PLUM_EXPORT __declspec(dllexport) // building the library
-#else
-#define PLUM_EXPORT __declspec(dllimport) // using the library
+#ifndef PLUM_STATIC // dynamic library
+#  ifdef _WIN32
+#    ifdef PLUM_EXPORTS
+#      define PLUM_EXPORT __declspec(dllexport) // building the library
+#    else
+#      define PLUM_EXPORT __declspec(dllimport) // using the library
+#    endif
+#  else // not WIN32
+#    if defined(__has_attribute)
+#      if __has_attribute(visibility)
+#        define PLUM_EXPORT __attribute__((visibility("default")))
+#      endif
+#    endif
+#  endif
 #endif
-#else // not WIN32
-#define PLUM_EXPORT
-#endif
-#endif
+#ifndef PLUM_EXPORT
+#  define PLUM_EXPORT
 #endif
 
 #define PLUM_ERR_SUCCESS 0

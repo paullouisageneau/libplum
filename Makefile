@@ -4,7 +4,7 @@ NAME=libplum
 CC=$(CROSS)gcc
 AR=$(CROSS)ar
 RM=rm -f
-CFLAGS=-O2 -pthread -fPIC
+CFLAGS=-O2 -pthread -fPIC -fvisibility=hidden
 LDFLAGS=-pthread
 LIBS=
 

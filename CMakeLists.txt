@@ -5,7 +5,6 @@ project (libplum
 set(PROJECT_DESCRIPTION "Multi-protocol Port Mapping client library")
 
 option(NO_EXAMPLE "Disable example build" OFF)
-option(NO_EXPORT_HEADER "Disable export header" OFF)
 option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 
 set(C_STANDARD 11)
@@ -118,21 +117,9 @@ write_basic_package_version_file(
 install(FILES ${CMAKE_BINARY_DIR}/LibPlumConfigVersion.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibPlum)
 
-if(NOT NO_EXPORT_HEADER AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.12")
-	include(GenerateExportHeader)
-	generate_export_header(plum
-		EXPORT_MACRO_NAME PLUM_EXPORT
-		NO_EXPORT_MACRO_NAME PLUM_NO_EXPORT
-		DEPRECATED_MACRO_NAME PLUM_DEPRECATED
-		STATIC_DEFINE PLUM_STATIC)
-	target_include_directories(plum PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
-	target_compile_definitions(plum PUBLIC -DPLUM_HAS_EXPORT_HEADER)
-	set_target_properties(plum PROPERTIES C_VISIBILITY_PRESET hidden)
-	install(FILES ${PROJECT_BINARY_DIR}/plum_export.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/plum)
-else()
-	target_compile_definitions(plum PRIVATE PLUM_EXPORTS)
-	target_compile_definitions(plum-static PRIVATE PLUM_EXPORTS)
-endif()
+set_target_properties(plum PROPERTIES C_VISIBILITY_PRESET hidden)
+target_compile_definitions(plum PRIVATE PLUM_EXPORTS)
+target_compile_definitions(plum-static PRIVATE PLUM_EXPORTS)
 
 if(NOT MSVC)
 	target_compile_options(plum PRIVATE -Wall -Wextra)
