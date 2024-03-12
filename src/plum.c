@@ -18,7 +18,7 @@
 
 static client_t *client = NULL;
 
-int plum_init(const plum_config_t *config) {
+PLUM_EXPORT int plum_init(const plum_config_t *config) {
 	if (client)
 		return PLUM_ERR_FAILED;
 
@@ -39,7 +39,7 @@ int plum_init(const plum_config_t *config) {
 	return PLUM_ERR_SUCCESS;
 }
 
-int plum_cleanup() {
+PLUM_EXPORT int plum_cleanup() {
 	if (!client)
 		return PLUM_ERR_FAILED;
 
@@ -54,7 +54,7 @@ int plum_cleanup() {
 	return PLUM_ERR_SUCCESS;
 }
 
-int plum_create_mapping(const plum_mapping_t *mapping, plum_mapping_callback_t callback) {
+PLUM_EXPORT int plum_create_mapping(const plum_mapping_t *mapping, plum_mapping_callback_t callback) {
 	if (!client)
 		return PLUM_ERR_FAILED;
 
@@ -72,7 +72,7 @@ int plum_create_mapping(const plum_mapping_t *mapping, plum_mapping_callback_t c
 	return id;
 }
 
-int plum_query_mapping(int id, plum_state_t *state, plum_mapping_t *mapping) {
+PLUM_EXPORT int plum_query_mapping(int id, plum_state_t *state, plum_mapping_t *mapping) {
 	if (!client)
 		return PLUM_ERR_FAILED;
 
@@ -85,7 +85,7 @@ int plum_query_mapping(int id, plum_state_t *state, plum_mapping_t *mapping) {
 	return PLUM_ERR_SUCCESS;
 }
 
-int plum_destroy_mapping(int id) {
+PLUM_EXPORT int plum_destroy_mapping(int id) {
 	if (!client)
 		return PLUM_ERR_FAILED;
 
@@ -98,7 +98,7 @@ int plum_destroy_mapping(int id) {
 	return PLUM_ERR_SUCCESS;
 }
 
-int plum_get_local_address(char *buffer, size_t size) {
+PLUM_EXPORT int plum_get_local_address(char *buffer, size_t size) {
 	addr_record_t record;
 	if(net_get_default_interface(AF_INET, &record) < 0)
 		return PLUM_ERR_NOT_AVAIL;
@@ -110,7 +110,7 @@ int plum_get_local_address(char *buffer, size_t size) {
 	return len;
 }
 
-int plum_get_dummytls_certificate(plum_dummytls_cert_type_t type, char *buffer, size_t size) {
+PLUM_EXPORT int plum_get_dummytls_certificate(plum_dummytls_cert_type_t type, char *buffer, size_t size) {
 	if (!buffer && size)
 		return PLUM_ERR_INVALID;
 
@@ -124,7 +124,7 @@ int plum_get_dummytls_certificate(plum_dummytls_cert_type_t type, char *buffer, 
 	return len;
 }
 
-int plum_get_dummytls_host(const char *address, char *buffer, size_t size) {
+PLUM_EXPORT int plum_get_dummytls_host(const char *address, char *buffer, size_t size) {
 	if (!address || (!buffer && size))
 		return PLUM_ERR_INVALID;
 
