@@ -31,7 +31,7 @@ static const char *log_level_colors[] = {
     "\x1B[97m\x1B[41m" // white on red
 };
 
-static atomic(plum_log_level_t) log_level = ATOMIC_VAR_INIT(PLUM_LOG_LEVEL_NONE);
+static atomic(plum_log_level_t) log_level = PLUM_LOG_LEVEL_NONE;
 static plum_log_callback_t log_callback = NULL;
 static mutex_t log_mutex;
 

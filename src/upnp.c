@@ -39,7 +39,7 @@ int upnp_init(protocol_state_t *state) {
 	*impl->external_addr_str = '\0';
 	impl->location_url = NULL;
 	impl->control_url = NULL;
-	impl->interrupt = ATOMIC_VAR_INIT(UPNP_INTERRUPT_NONE);
+	impl->interrupt = UPNP_INTERRUPT_NONE;
 
 	udp_socket_config_t udp_config;
 	memset(&udp_config, 0, sizeof(udp_config));

@@ -33,7 +33,7 @@ int pcp_init(protocol_state_t *state) {
 	impl->mcast_sock = INVALID_SOCKET;
 	impl->has_prev_server_time = false;
 	impl->use_natpmp = false;
-	impl->interrupt = ATOMIC_VAR_INIT(PCP_INTERRUPT_NONE);
+	impl->interrupt = PCP_INTERRUPT_NONE;
 
 	udp_socket_config_t udp_config;
 	memset(&udp_config, 0, sizeof(udp_config));
