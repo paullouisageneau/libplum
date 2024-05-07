@@ -139,7 +139,6 @@ static inline int cond_timedwait_impl(cond_t *c, mutex_t *m, unsigned int msecs)
 #define atomic_ptr(T) T *volatile
 #define atomic_store(a, v) (void)(*(a) = (v))
 #define atomic_load(a) (*(a))
-#define ATOMIC_VAR_INIT(v) (v)
 
 #endif // if atomics
 
