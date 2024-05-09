@@ -7,7 +7,7 @@ set(PROJECT_DESCRIPTION "Multi-protocol Port Mapping client library")
 option(NO_EXAMPLE "Disable example build" OFF)
 option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 
-set(C_STANDARD 11)
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include(GNUInstallDirs)
