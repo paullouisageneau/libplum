@@ -93,6 +93,13 @@ install(TARGETS plum EXPORT LibPlumTargets
 	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
+install(TARGETS plum-static EXPORT LibPlumTargets
+	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+	LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+	OPTIONAL
+)
+
 install(FILES ${LIBPLUM_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/plum)
 
 # Export Targets
@@ -103,19 +110,25 @@ install(
 	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibPlum
 )
 
-# Export config
-install(
-    FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/LibPlumConfig.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibPlum
-)
-
 include(CMakePackageConfigHelpers)
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/LibPlumConfig.cmake.in
+    ${CMAKE_BINARY_DIR}/LibPlumConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibPlum
+    NO_SET_AND_CHECK_MACRO
+    NO_CHECK_REQUIRED_COMPONENTS_MACRO
+)
 write_basic_package_version_file(
     ${CMAKE_BINARY_DIR}/LibPlumConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion)
-install(FILES ${CMAKE_BINARY_DIR}/LibPlumConfigVersion.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibPlum)
+    COMPATIBILITY SameMajorVersion
+)
+# Export config and version files
+install(FILES
+    ${CMAKE_BINARY_DIR}/LibPlumConfig.cmake
+    ${CMAKE_BINARY_DIR}/LibPlumConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibPlum
+)
 
 set_target_properties(plum PROPERTIES C_VISIBILITY_PRESET hidden)
 target_compile_definitions(plum PRIVATE PLUM_EXPORTS)
