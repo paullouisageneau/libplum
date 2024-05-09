@@ -132,7 +132,7 @@ install(FILES
 
 set_target_properties(plum PROPERTIES C_VISIBILITY_PRESET hidden)
 target_compile_definitions(plum PRIVATE PLUM_EXPORTS)
-target_compile_definitions(plum-static PRIVATE PLUM_EXPORTS)
+target_compile_definitions(plum-static PRIVATE PLUM_EXPORTS PUBLIC PLUM_STATIC)
 
 if(NOT MSVC)
 	target_compile_options(plum PRIVATE -Wall -Wextra)
