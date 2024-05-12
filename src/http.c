@@ -43,7 +43,7 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 		return -1;
 	}
 
-	char *service;
+	const char *service;
 	char *separator = strchr(host, ':');
 	if (separator) {
 		*separator = '\0';
