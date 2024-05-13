@@ -189,7 +189,7 @@ int tcp_send(socket_t sock, const char *data, size_t size, timestamp_t end_times
 				if (sockerrno == SEAGAIN || sockerrno == SEWOULDBLOCK)
 					continue;
 
-				PLUM_LOG_WARN("TCP recv failed, errno=%d", sockerrno);
+				PLUM_LOG_WARN("TCP send failed, errno=%d", sockerrno);
 				return -1;
 			}
 
