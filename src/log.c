@@ -136,6 +136,10 @@ void plum_log_write(plum_log_level_t level, const char *file, int line, const ch
 		fflush(stdout);
 	}
 
+#if !RELEASE
+	// Place the goto label under #ifdef so that this code doesn't
+	// trigger `-Wunused-label` warning in release builds.
 __exit:
+#endif
 	mutex_unlock(&log_mutex);
 }
