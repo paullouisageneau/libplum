@@ -91,7 +91,7 @@ int net_get_default_gateway(int family, addr_record_t *record) {
 				addr_set_binary(AF_INET, &nextHop->Ipv4.sin_addr, 0, record);
 				return 0;
 			case AF_INET6:
-				addr_set_binary(AF_INET, &nextHop->Ipv6.sin6_addr, 0, record);
+				addr_set_binary(AF_INET6, &nextHop->Ipv6.sin6_addr, 0, record);
 				return 0;
 			default:
 				PLUM_LOG_WARN("GetIpForwardTable2 returned unexpected address family");
