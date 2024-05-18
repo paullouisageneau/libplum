@@ -70,7 +70,7 @@ socket_t udp_create_socket(const udp_socket_config_t *config) {
 	const sockopt_t disabled = 0;
 
 	// Listen on both IPv6 and IPv4
-	if (ai->ai_family == AF_INET6)
+	if (config->family == AF_UNSPEC && ai->ai_family == AF_INET6)
 		setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (const char *)&disabled, sizeof(disabled));
 
 	if (config->enable_broadcast)
