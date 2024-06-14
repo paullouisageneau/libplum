@@ -6,6 +6,7 @@ set(PROJECT_DESCRIPTION "Multi-protocol Port Mapping client library")
 
 option(NO_EXAMPLE "Disable example build" OFF)
 option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
+option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -50,7 +51,7 @@ set(EXAMPLE_SOURCES
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-add_library(plum SHARED ${LIBPLUM_SOURCES})
+add_library(plum ${LIBPLUM_SOURCES})
 set_target_properties(plum PROPERTIES VERSION ${PROJECT_VERSION})
 target_include_directories(plum PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -83,8 +84,6 @@ endif()
 
 set_target_properties(plum PROPERTIES EXPORT_NAME LibPlum)
 add_library(LibPlum::LibPlum ALIAS plum)
-
-set_target_properties(plum-static PROPERTIES EXPORT_NAME LibPlumStatic)
 add_library(LibPlum::LibPlumStatic ALIAS plum-static)
 
 install(TARGETS plum EXPORT LibPlumTargets
@@ -93,12 +92,9 @@ install(TARGETS plum EXPORT LibPlumTargets
 	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-install(TARGETS plum-static EXPORT LibPlumTargets
-	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-	LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-	OPTIONAL
-)
+# Don't install `plum-static` target, since it may not always be
+# available in the build tree (i.e. marked with `EXCLUDE_FROM_ALL`).
+# CMake doesn't support installing targets with `EXCLUDE_FROM_ALL` set.
 
 install(FILES ${LIBPLUM_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/plum)
 
@@ -132,6 +128,9 @@ install(FILES
 
 set_target_properties(plum PROPERTIES C_VISIBILITY_PRESET hidden)
 target_compile_definitions(plum PRIVATE PLUM_EXPORTS)
+if (NOT BUILD_SHARED_LIBS)
+	target_compile_definitions(plum PUBLIC PLUM_STATIC)
+endif()
 target_compile_definitions(plum-static PRIVATE PLUM_EXPORTS PUBLIC PLUM_STATIC)
 
 if(NOT MSVC)
