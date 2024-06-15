@@ -19,6 +19,11 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #define NETLINK_BUFFER_SIZE 8192
+#elif defined(__APPLE__)
+#include <sys/sysctl.h>
+#include <sys/socket.h>
+#include <net/route.h>
+#include <netinet/in.h>
 #endif
 
 int net_get_default_interface(int family, addr_record_t *record) {
@@ -204,6 +209,89 @@ int net_get_default_gateway(int family, addr_record_t *record) {
 error:
 	closesocket(sock);
 	return -1;
+
+#elif defined(__APPLE__)
+
+	// macOS always uses 4-byte alignment for sockaddrs following message header
+	#define ROUNDUP(a) \
+		((a) > 0 ? (1 + (((a) - 1) | (sizeof(uint32_t) - 1))) : sizeof(uint32_t))
+
+	#define NET_MIB_INTS 6
+	int mib[NET_MIB_INTS] = {CTL_NET, PF_ROUTE, 0, family, NET_RT_FLAGS, RTF_GATEWAY};
+
+	size_t buf_len = 0;
+	if (sysctl(mib, NET_MIB_INTS, NULL, &buf_len, NULL, 0) != 0) {
+		PLUM_LOG_WARN("sysctl[1] failed");
+		return -1;
+	}
+	if (buf_len == 0) {
+		PLUM_LOG_WARN("sysctl[1] returned 0 buffer length");
+		return -1;
+	}
+	char *buf = malloc(buf_len);
+	if (!buf) {
+		PLUM_LOG_WARN("Failed to allocate memory for buffer, size=%zu", buf_len);
+		return -1;
+	}
+	if (sysctl(mib, NET_MIB_INTS, buf, &buf_len, NULL, 0) != 0) {
+		PLUM_LOG_WARN("sysctl[2] failed");
+		free(buf);
+		return -1;
+	}
+	
+	int ret = -1;
+	struct rt_msghdr *rtm = NULL;
+	char *buf_limit = (buf + buf_len);
+	for (char *curr = buf; curr < buf_limit; curr += rtm->rtm_msglen) {
+		rtm = (struct rt_msghdr *)curr;
+
+		if ( ((rtm->rtm_flags & (RTF_UP|RTF_GATEWAY)) != (RTF_UP|RTF_GATEWAY))
+			|| ((rtm->rtm_addrs & (RTA_DST|RTA_GATEWAY)) != (RTA_DST|RTA_GATEWAY)) ) {
+			continue;
+		}
+
+		struct sockaddr *sa = (struct sockaddr *)(rtm + 1);
+		struct sockaddr *sa_dst = NULL;
+		struct sockaddr *sa_gateway = NULL;
+		for (int i = 0; i < RTAX_MAX; i++) {
+			if (rtm->rtm_addrs & (1 << i)) {
+				switch (i) {
+				case RTAX_DST:
+					sa_dst = sa;
+					break;
+				case RTAX_GATEWAY:
+					sa_gateway = sa;
+					break;
+				}
+				sa = (struct sockaddr *)((char *)sa + ROUNDUP(sa->sa_len));
+			}
+		}
+
+		if (sa_dst->sa_family != family || sa_gateway->sa_family != family) {
+			continue;
+		}
+
+		if (family == AF_INET) {
+			if (((struct sockaddr_in *)sa_dst)->sin_addr.s_addr == INADDR_ANY) {
+				addr_set_binary(AF_INET, &(((struct sockaddr_in *)(sa_gateway))->sin_addr), 0, record);
+				ret = 0;
+				break;
+			}
+		}
+		else if (family == AF_INET6) {
+			if (memcmp(&((struct sockaddr_in6 *)sa_dst)->sin6_addr, &in6addr_any, sizeof(struct in6_addr)) == 0
+				&& !IN6_IS_ADDR_LINKLOCAL(&((struct sockaddr_in6 *)sa_gateway)->sin6_addr)) {
+				addr_set_binary(AF_INET6, &(((struct sockaddr_in6 *)(sa_gateway))->sin6_addr), 0, record);
+				ret = 0;
+				break;
+			}
+		}
+	}
+	free(buf);
+	if (ret == -1) {
+		PLUM_LOG_WARN("No default route found");
+	}
+	return ret;
 
 #else
 	PLUM_LOG_WARN("Getting the default gateway is not implemented on this platform, falling back "
