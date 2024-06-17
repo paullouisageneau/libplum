@@ -67,6 +67,7 @@ error:
 		closesocket(impl->mcast_sock);
 
 	free(state->impl);
+	state->impl = NULL;
 	return PROTOCOL_ERR_INSUFF_RESOURCES;
 }
 
@@ -78,6 +79,7 @@ int pcp_cleanup(protocol_state_t *state) {
 	closesocket(impl->mcast_sock);
 
 	free(state->impl);
+	state->impl = NULL;
 	return PROTOCOL_ERR_SUCCESS;
 }
 
