@@ -39,6 +39,7 @@ int noprotocol_cleanup(protocol_state_t *state) {
 	cond_destroy(&impl->interrupt_cond);
 
 	free(state->impl);
+	state->impl = NULL;
 	return PROTOCOL_ERR_SUCCESS;
 }
 

@@ -160,7 +160,6 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 	int code = 0;
 	if (sscanf(buffer, "HTTP/%*s %d %*s\n%n", &code, &len) != 1 || code <= 0) {
 		PLUM_LOG_WARN("Failed to parse HTTP response status");
-		free(buffer);
 		goto error;
 	}
 
@@ -170,7 +169,6 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 	char *headers_end = strstr(headers_begin, "\r\n\r\n");
 	if (!headers_end) {
 		PLUM_LOG_WARN("Failed to parse HTTP response headers");
-		free(buffer);
 		goto error;
 	}
 	headers_end += 2;
@@ -200,7 +198,6 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 	response->headers = malloc(headers_size + 1);
 	if (!response->headers) {
 		PLUM_LOG_WARN("Failed to allocate memory for HTTP headers, size=%zu", headers_size + 1);
-		free(buffer);
 		goto error;
 	}
 	memcpy(response->headers, headers_begin, headers_size);

@@ -60,6 +60,7 @@ error:
 		closesocket(impl->sock);
 
 	free(state->impl);
+	state->impl = NULL;
 	return PROTOCOL_ERR_INSUFF_RESOURCES;
 }
 
@@ -72,6 +73,7 @@ int upnp_cleanup(protocol_state_t *state) {
 	free(impl->control_url);
 
 	free(state->impl);
+	state->impl = NULL;
 	return PROTOCOL_ERR_SUCCESS;
 }
 

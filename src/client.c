@@ -315,6 +315,9 @@ void client_run(client_t *client) {
 		if (!client->protocol) {
 			client->protocol = protocols + protocol_num;
 			err = client->protocol->init(&client->protocol_state);
+			if (err != PROTOCOL_ERR_SUCCESS) {
+				client->protocol = NULL;
+			}
 		}
 
 		if (err == PROTOCOL_ERR_SUCCESS) {
