@@ -168,6 +168,11 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 			case 725: // The NAT implementation only supports permanent lease times on port mapping
 				duration = 0;
 				break;
+			case 729: // Attempted port mapping is not allowed due to conflict with other mechanisms
+				// NAT port mapping rules can be created by other mechanisms besides UPnP IGD.
+				// Therefore, it is possible that port mappings done by independent mechanisms MAY overlap or conflict.
+				external_port = random_port();
+				break;
 			default:
 				return PROTOCOL_ERR_PROTOCOL_FAILED;
 				break;
@@ -329,13 +334,26 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
 		return PROTOCOL_ERR_NETWORK_FAILED;
 	}
 
-	const char *serviceType = "urn:schemas-upnp-org:service:WANIPConnection:1";
+	// Try to find WANIPConnection:2
+	const char *serviceType = "urn:schemas-upnp-org:service:WANIPConnection:2";
 	const char *service =
 	    xml_find_matching_child(response.body, "service", "serviceType", serviceType);
-	if (!service) {
-		PLUM_LOG_WARN("WANIPConnection not found in UPnP-IGD services");
-		http_free(&response);
-		return PROTOCOL_ERR_PROTOCOL_FAILED;
+	if (service) {
+		impl->wanipconnection_ver = 2;
+	}
+	else {
+		// Try to find WANIPConnection:1
+		serviceType = "urn:schemas-upnp-org:service:WANIPConnection:1";
+		service =
+			xml_find_matching_child(response.body, "service", "serviceType", serviceType);
+		if (service) {
+			impl->wanipconnection_ver = 1;
+		}
+		else {
+			PLUM_LOG_WARN("WANIPConnection not found in UPnP-IGD services");
+			http_free(&response);
+			return PROTOCOL_ERR_PROTOCOL_FAILED;
+		}
 	}
 
 	char control_url[HTTP_MAX_URL_LEN];
@@ -365,7 +383,7 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
 		strcpy(control_url, tmp);
 	}
 
-	PLUM_LOG_DEBUG("UPnP-IGP WANIPConnection control URL: %s", control_url);
+	PLUM_LOG_DEBUG("UPnP-IGP WANIPConnection:%d control URL: %s", impl->wanipconnection_ver, control_url);
 	free(impl->control_url);
 	impl->control_url = malloc(strlen(control_url) + 1);
 	strcpy(impl->control_url, control_url);
@@ -449,7 +467,7 @@ int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t exter
 	                   "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
 	                   "<s:Body>"
 	                   "<m:AddPortMapping "
-	                   "xmlns:m=\"urn:schemas-upnp-org:service:WANIPConnection:1\">"
+	                   "xmlns:m=\"urn:schemas-upnp-org:service:WANIPConnection:%d\">"
 	                   "<NewRemoteHost></NewRemoteHost>"
 	                   "<NewExternalPort>%hu</NewExternalPort>"
 	                   "<NewProtocol>%s</NewProtocol>"
@@ -461,6 +479,7 @@ int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t exter
 	                   "</m:AddPortMapping>"
 	                   "</s:Body>"
 	                   "</s:Envelope>\r\n",
+	                   impl->wanipconnection_ver,
 	                   external_port, protocol == PLUM_IP_PROTOCOL_UDP ? "UDP" : "TCP",
 	                   internal_port, local_str, description, lifetime);
 	if (len <= 0 || len >= UPNP_BUFFER_SIZE) {
@@ -472,8 +491,14 @@ int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t exter
 	memset(&request, 0, sizeof(request));
 	request.method = HTTP_METHOD_POST;
 	request.url = impl->control_url;
-	request.headers =
-	    "SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:1#AddPortMapping\r\n";
+	if (impl->wanipconnection_ver == 2) {
+		request.headers =
+			"SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:2#AddPortMapping\r\n";
+	}
+	else {
+		request.headers =
+			"SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:1#AddPortMapping\r\n";
+	}
 	request.body = buffer;
 	request.body_size = strlen(request.body);
 	request.body_type = "text/xml; charset=\"utf-8\"";
@@ -517,14 +542,14 @@ int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t ext
 	             "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
 	             "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
 	             "<s:Body>"
-	             "<m:DeletePortMapping xmlns:m=\"urn:schemas-upnp-org:service:WANIPConnection:1\">"
+	             "<m:DeletePortMapping xmlns:m=\"urn:schemas-upnp-org:service:WANIPConnection:%d\">"
 	             "<NewRemoteHost></NewRemoteHost>"
 	             "<NewExternalPort>%hu</NewExternalPort>"
 	             "<NewProtocol>%s</NewProtocol>"
 	             "</m:DeletePortMapping>"
 	             "</s:Body>"
 	             "</s:Envelope>\r\n",
-	             external_port, protocol == PLUM_IP_PROTOCOL_UDP ? "UDP" : "TCP");
+	             impl->wanipconnection_ver, external_port, protocol == PLUM_IP_PROTOCOL_UDP ? "UDP" : "TCP");
 	if (len <= 0 || len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request body");
 		return PROTOCOL_ERR_UNKNOWN;
@@ -534,8 +559,14 @@ int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t ext
 	memset(&request, 0, sizeof(request));
 	request.method = HTTP_METHOD_POST;
 	request.url = impl->control_url;
-	request.headers =
-	    "SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:1#DeletePortMapping\r\n";
+	if (impl->wanipconnection_ver == 2) {
+		request.headers =
+			"SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:2#DeletePortMapping\r\n";
+	}
+	else {
+		request.headers =
+			"SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:1#DeletePortMapping\r\n";
+	}
 	request.body = buffer;
 	request.body_size = strlen(request.body);
 	request.body_type = "text/xml; charset=\"utf-8\"";
