@@ -166,7 +166,7 @@ int net_get_default_gateway(int family, addr_record_t *record) {
 			goto error;
 		}
 
-		if (snl_len < sizeof(snl) || snl.nl_pid != 0) {
+		if (snl_len < (socklen_t)sizeof(snl) || snl.nl_pid != 0) {
 			PLUM_LOG_WARN("Netlink received datagram not from kernel");
 			continue;
 		}
