@@ -339,22 +339,44 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
 	const char *service =
 	    xml_find_matching_child(response.body, "service", "serviceType", serviceType);
 	if (service) {
+        impl->wanipconnection_service = "WANIPConnection";
 		impl->wanipconnection_ver = 2;
 	}
-	else {
+	if (!service) {
+        // Try to find WANPPPConnection:2
+        serviceType = "urn:schemas-upnp-org:service:WANPPPConnection:2";
+        service =
+            xml_find_matching_child(response.body, "service", "serviceType", serviceType);
+        if (service) {
+            impl->wanipconnection_service = "WANPPPConnection";
+            impl->wanipconnection_ver = 2;
+        }
+	}
+	if (!service) {
 		// Try to find WANIPConnection:1
 		serviceType = "urn:schemas-upnp-org:service:WANIPConnection:1";
 		service =
 			xml_find_matching_child(response.body, "service", "serviceType", serviceType);
 		if (service) {
+            impl->wanipconnection_service = "WANIPConnection";
 			impl->wanipconnection_ver = 1;
 		}
-		else {
-			PLUM_LOG_WARN("WANIPConnection not found in UPnP-IGD services");
-			http_free(&response);
-			return PROTOCOL_ERR_PROTOCOL_FAILED;
+	}
+	if (!service) {
+		// Try to find WANPPPConnection:1
+		serviceType = "urn:schemas-upnp-org:service:WANPPPConnection:1";
+		service =
+			xml_find_matching_child(response.body, "service", "serviceType", serviceType);
+		if (service) {
+            impl->wanipconnection_service = "WANPPPConnection";
+			impl->wanipconnection_ver = 1;
 		}
 	}
+    if (!service) {
+        PLUM_LOG_WARN("WANIPConnection not found in UPnP-IGD services");
+        http_free(&response);
+        return PROTOCOL_ERR_PROTOCOL_FAILED;
+    }
 
 	char control_url[HTTP_MAX_URL_LEN];
 	if (xml_extract(service, "controlURL", control_url, HTTP_MAX_URL_LEN) <= 0) {
@@ -402,18 +424,35 @@ int upnp_impl_query_external_addr(upnp_impl_t *impl, timestamp_t end_timestamp) 
 	memset(&request, 0, sizeof(request));
 	request.method = HTTP_METHOD_POST;
 	request.url = impl->control_url;
-	request.headers =
-	    "SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:1#GetExternalIPAddress\r\n";
-	request.body = "<?xml version=\"1.0\"?>\r\n"
-	               "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
-	               "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
-	               "<s:Body>"
-	               "<m:GetExternalIPAddress "
-	               "xmlns:u=\"urn:schemas-upnp-org:service:WANIPConnection:1\">"
-	               "</m:GetExternalIPAddress>"
-	               "</s:Body>"
-	               "</s:Envelope>\r\n";
-	request.body_size = strlen(request.body);
+
+	char header_buffer[UPNP_BUFFER_SIZE];
+	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
+                              "SOAPAction: urn:schemas-upnp-org:service:%s:1#GetExternalIPAddress\r\n",
+                              impl->wanipconnection_service);
+	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
+		PLUM_LOG_ERROR("Failed to format SOAP request headers");
+		return PROTOCOL_ERR_UNKNOWN;
+	}
+    request.headers = header_buffer;
+
+	char body_buffer[UPNP_BUFFER_SIZE];
+	int body_len = snprintf(body_buffer, UPNP_BUFFER_SIZE,
+                            "<?xml version=\"1.0\"?>\r\n"
+                            "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+                            "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
+                            "<s:Body>"
+                            "<m:GetExternalIPAddress "
+                            "xmlns:u=\"urn:schemas-upnp-org:service:%s:1\">"
+                            "</m:GetExternalIPAddress>"
+                            "</s:Body>"
+                            "</s:Envelope>\r\n",
+                            impl->wanipconnection_service);
+	if (body_len <= 0 || body_len >= UPNP_BUFFER_SIZE) {
+		PLUM_LOG_ERROR("Failed to format SOAP request body");
+		return PROTOCOL_ERR_UNKNOWN;
+	}
+    request.body = body_buffer;
+	request.body_size = body_len;
 	request.body_type = "text/xml; charset=\"utf-8\"";
 
 	http_response_t response;
@@ -460,47 +499,51 @@ int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t exter
 
 	const char *description = "libplum"; // TODO
 
-	char buffer[UPNP_BUFFER_SIZE];
-	int len = snprintf(buffer, UPNP_BUFFER_SIZE,
-	                   "<?xml version=\"1.0\"?>\r\n"
-	                   "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
-	                   "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
-	                   "<s:Body>"
-	                   "<m:AddPortMapping "
-	                   "xmlns:m=\"urn:schemas-upnp-org:service:WANIPConnection:%d\">"
-	                   "<NewRemoteHost></NewRemoteHost>"
-	                   "<NewExternalPort>%hu</NewExternalPort>"
-	                   "<NewProtocol>%s</NewProtocol>"
-	                   "<NewInternalPort>%hu</NewInternalPort>"
-	                   "<NewInternalClient>%s</NewInternalClient>"
-	                   "<NewEnabled>1</NewEnabled>"
-	                   "<NewPortMappingDescription>%s</NewPortMappingDescription>"
-	                   "<NewLeaseDuration>%u</NewLeaseDuration>"
-	                   "</m:AddPortMapping>"
-	                   "</s:Body>"
-	                   "</s:Envelope>\r\n",
-	                   impl->wanipconnection_ver,
-	                   external_port, protocol == PLUM_IP_PROTOCOL_UDP ? "UDP" : "TCP",
-	                   internal_port, local_str, description, lifetime);
-	if (len <= 0 || len >= UPNP_BUFFER_SIZE) {
-		PLUM_LOG_ERROR("Failed to format SOAP request body");
-		return PROTOCOL_ERR_UNKNOWN;
-	}
-
 	http_request_t request;
 	memset(&request, 0, sizeof(request));
 	request.method = HTTP_METHOD_POST;
 	request.url = impl->control_url;
-	if (impl->wanipconnection_ver == 2) {
-		request.headers =
-			"SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:2#AddPortMapping\r\n";
+
+	char header_buffer[UPNP_BUFFER_SIZE];
+	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
+                              "SOAPAction: urn:schemas-upnp-org:service:%s:%d#AddPortMapping\r\n",
+                              impl->wanipconnection_service,
+                              impl->wanipconnection_ver);
+	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
+		PLUM_LOG_ERROR("Failed to format SOAP request headers");
+		return PROTOCOL_ERR_UNKNOWN;
 	}
-	else {
-		request.headers =
-			"SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:1#AddPortMapping\r\n";
+    request.headers = header_buffer;
+
+	char body_buffer[UPNP_BUFFER_SIZE];
+	int body_len = snprintf(body_buffer, UPNP_BUFFER_SIZE,
+	                        "<?xml version=\"1.0\"?>\r\n"
+	                        "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+	                        "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
+	                        "<s:Body>"
+	                        "<m:AddPortMapping "
+	                        "xmlns:m=\"urn:schemas-upnp-org:service:%s:%d\">"
+	                        "<NewRemoteHost></NewRemoteHost>"
+	                        "<NewExternalPort>%hu</NewExternalPort>"
+	                        "<NewProtocol>%s</NewProtocol>"
+	                        "<NewInternalPort>%hu</NewInternalPort>"
+	                        "<NewInternalClient>%s</NewInternalClient>"
+	                        "<NewEnabled>1</NewEnabled>"
+	                        "<NewPortMappingDescription>%s</NewPortMappingDescription>"
+	                        "<NewLeaseDuration>%u</NewLeaseDuration>"
+	                        "</m:AddPortMapping>"
+	                        "</s:Body>"
+	                        "</s:Envelope>\r\n",
+                            impl->wanipconnection_service,
+	                        impl->wanipconnection_ver,
+	                        external_port, protocol == PLUM_IP_PROTOCOL_UDP ? "UDP" : "TCP",
+	                        internal_port, local_str, description, lifetime);
+	if (body_len <= 0 || body_len >= UPNP_BUFFER_SIZE) {
+		PLUM_LOG_ERROR("Failed to format SOAP request body");
+		return PROTOCOL_ERR_UNKNOWN;
 	}
-	request.body = buffer;
-	request.body_size = strlen(request.body);
+	request.body = body_buffer;
+	request.body_size = body_len;
 	request.body_type = "text/xml; charset=\"utf-8\"";
 
 	http_response_t response;
@@ -535,40 +578,44 @@ int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t ext
 		return PROTOCOL_ERR_UNKNOWN;
 	}
 
-	char buffer[UPNP_BUFFER_SIZE];
-	int len =
-	    snprintf(buffer, UPNP_BUFFER_SIZE,
-	             "<?xml version=\"1.0\"?>\r\n"
-	             "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
-	             "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
-	             "<s:Body>"
-	             "<m:DeletePortMapping xmlns:m=\"urn:schemas-upnp-org:service:WANIPConnection:%d\">"
-	             "<NewRemoteHost></NewRemoteHost>"
-	             "<NewExternalPort>%hu</NewExternalPort>"
-	             "<NewProtocol>%s</NewProtocol>"
-	             "</m:DeletePortMapping>"
-	             "</s:Body>"
-	             "</s:Envelope>\r\n",
-	             impl->wanipconnection_ver, external_port, protocol == PLUM_IP_PROTOCOL_UDP ? "UDP" : "TCP");
-	if (len <= 0 || len >= UPNP_BUFFER_SIZE) {
-		PLUM_LOG_ERROR("Failed to format SOAP request body");
-		return PROTOCOL_ERR_UNKNOWN;
-	}
-
 	http_request_t request;
 	memset(&request, 0, sizeof(request));
 	request.method = HTTP_METHOD_POST;
 	request.url = impl->control_url;
-	if (impl->wanipconnection_ver == 2) {
-		request.headers =
-			"SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:2#DeletePortMapping\r\n";
+
+	char header_buffer[UPNP_BUFFER_SIZE];
+	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
+                              "SOAPAction: urn:schemas-upnp-org:service:%s:%d#DeletePortMapping\r\n",
+                              impl->wanipconnection_service,
+                              impl->wanipconnection_ver);
+	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
+		PLUM_LOG_ERROR("Failed to format SOAP request headers");
+		return PROTOCOL_ERR_UNKNOWN;
 	}
-	else {
-		request.headers =
-			"SOAPAction: urn:schemas-upnp-org:service:WANIPConnection:1#DeletePortMapping\r\n";
+    request.headers = header_buffer;
+
+	char body_buffer[UPNP_BUFFER_SIZE];
+	int body_len = snprintf(body_buffer, UPNP_BUFFER_SIZE,
+	                        "<?xml version=\"1.0\"?>\r\n"
+	                        "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+	                        "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
+	                        "<s:Body>"
+	                        "<m:DeletePortMapping xmlns:m=\"urn:schemas-upnp-org:service:%s:%d\">"
+	                        "<NewRemoteHost></NewRemoteHost>"
+	                        "<NewExternalPort>%hu</NewExternalPort>"
+	                        "<NewProtocol>%s</NewProtocol>"
+	                        "</m:DeletePortMapping>"
+	                        "</s:Body>"
+	                        "</s:Envelope>\r\n",
+                            impl->wanipconnection_service,
+	                        impl->wanipconnection_ver, external_port,
+                            protocol == PLUM_IP_PROTOCOL_UDP ? "UDP" : "TCP");
+	if (body_len <= 0 || body_len >= UPNP_BUFFER_SIZE) {
+		PLUM_LOG_ERROR("Failed to format SOAP request body");
+		return PROTOCOL_ERR_UNKNOWN;
 	}
-	request.body = buffer;
-	request.body_size = strlen(request.body);
+	request.body = body_buffer;
+	request.body_size = body_len;
 	request.body_type = "text/xml; charset=\"utf-8\"";
 
 	http_response_t response;
