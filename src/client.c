@@ -115,18 +115,22 @@ void client_destroy(client_t *client) {
 }
 
 int client_start(client_t *client) {
+	mutex_lock(&client->protocol_mutex);
 	if (client->is_started) {
 		PLUM_LOG_DEBUG("Client is already started");
+		mutex_unlock(&client->protocol_mutex);
 		return 0;
 	}
 
 	int ret = thread_init(&client->thread, client_thread_entry, client);
 	if (ret) {
 		PLUM_LOG_FATAL("Thread creation failed, error=%d", ret);
+		mutex_unlock(&client->protocol_mutex);
 		return -1;
 	}
 
 	client->is_started = true;
+	mutex_unlock(&client->protocol_mutex);
 	return 0;
 }
 
@@ -474,11 +478,13 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 }
 
 int client_interrupt(client_t *client, bool stop) {
-	if (!client->is_started)
-		return PROTOCOL_ERR_SUCCESS;
-
 	PLUM_LOG_DEBUG("Interrupting protocol");
 	mutex_lock(&client->protocol_mutex);
+
+	if (!client->is_started) {
+		mutex_unlock(&client->protocol_mutex);
+		return PROTOCOL_ERR_SUCCESS;
+	}
 
 	if (stop)
 		atomic_store(&client->is_stopping, true);
