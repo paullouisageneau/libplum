@@ -141,6 +141,10 @@ int tcp_recv(socket_t sock, char *buffer, size_t size, timestamp_t end_timestamp
 
 			return len;
 		}
+
+		if (pfd.revents & POLLHUP) {
+			return 0;
+		}
 	}
 
 	// Timeout
