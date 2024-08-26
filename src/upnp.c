@@ -36,6 +36,7 @@ int upnp_init(protocol_state_t *state) {
 	upnp_impl_t *impl = state->impl;
 	memset(impl, 0, sizeof(*impl));
 	impl->sock = INVALID_SOCKET;
+	impl->interrupt_sock = INVALID_SOCKET;
 	*impl->external_addr_str = '\0';
 	impl->location_url = NULL;
 	impl->control_url = NULL;
@@ -53,11 +54,24 @@ int upnp_init(protocol_state_t *state) {
 		goto error;
 	}
 
+	udp_socket_config_t interrupt_udp_config;
+	memset(&interrupt_udp_config, 0, sizeof(interrupt_udp_config));
+	interrupt_udp_config.family = AF_INET;
+	interrupt_udp_config.port = 0;
+	impl->interrupt_sock = udp_create_socket(&interrupt_udp_config);
+	if (impl->interrupt_sock == INVALID_SOCKET) {
+		PLUM_LOG_ERROR("UDP interrupt socket creation failed");
+		goto error;
+	}
+
 	return PROTOCOL_ERR_SUCCESS;
 
 error:
 	if (impl->sock != INVALID_SOCKET)
 		closesocket(impl->sock);
+
+	if (impl->interrupt_sock != INVALID_SOCKET)
+		closesocket(impl->interrupt_sock);
 
 	free(state->impl);
 	state->impl = NULL;
@@ -69,6 +83,7 @@ int upnp_cleanup(protocol_state_t *state) {
 
 	upnp_impl_t *impl = state->impl;
 	closesocket(impl->sock);
+	closesocket(impl->interrupt_sock);
 	free(impl->location_url);
 	free(impl->control_url);
 
@@ -221,7 +236,7 @@ int upnp_interrupt(protocol_state_t *state, bool hard) {
 	PLUM_LOG_VERBOSE("Interrupting UPnP operation");
 	atomic_store(&impl->interrupt, hard ? UPNP_INTERRUPT_HARD : UPNP_INTERRUPT_SOFT);
 
-	if (udp_sendto_self(impl->sock, NULL, 0) < 0) {
+	if (udp_sendto_self(impl->interrupt_sock, NULL, 0) < 0) {
 		if (sockerrno != SEAGAIN && sockerrno != SEWOULDBLOCK) {
 			PLUM_LOG_WARN("Failed to interrupt UPnP operation by triggering socket, errno=%d",
 			              sockerrno);
@@ -609,12 +624,14 @@ int upnp_impl_wait_response(upnp_impl_t *impl, char *buffer, size_t size, addr_r
 			return PROTOCOL_ERR_INTERRUPTED;
 		}
 
-		struct pollfd pfd;
-		pfd.fd = impl->sock;
-		pfd.events = POLLIN;
+		struct pollfd pfd[2];
+		pfd[0].fd = impl->sock;
+		pfd[0].events = POLLIN;
+		pfd[1].fd = impl->interrupt_sock;
+		pfd[1].events = POLLIN;
 
 		PLUM_LOG_VERBOSE("Entering poll for %d ms", (int)timediff);
-		int ret = poll(&pfd, 1, (int)timediff);
+		int ret = poll(pfd, 2, (int)timediff);
 		if (ret < 0) {
 			if (sockerrno == SEINTR || sockerrno == SEAGAIN) {
 				PLUM_LOG_VERBOSE("poll interrupted");
@@ -630,13 +647,15 @@ int upnp_impl_wait_response(upnp_impl_t *impl, char *buffer, size_t size, addr_r
 		if (ret == 0) // timeout
 			break;
 
-		if (pfd.revents & POLLNVAL || pfd.revents & POLLERR) {
-			PLUM_LOG_ERROR("Error when polling socket");
-			return PROTOCOL_ERR_UNKNOWN;
+		for (int i = 0; i < 2; ++i) {
+			if (pfd[i].revents & POLLNVAL || pfd[i].revents & POLLERR) {
+				PLUM_LOG_ERROR("Error when polling socket");
+				return PROTOCOL_ERR_UNKNOWN;
+			}
 		}
 
-		if (pfd.revents & POLLIN) {
-			int len = udp_recvfrom(pfd.fd, buffer, size, src);
+		if (pfd[0].revents & POLLIN) {
+			int len = udp_recvfrom(pfd[0].fd, buffer, size, src);
 			if (len < 0) {
 				if (sockerrno == SEAGAIN || sockerrno == SEWOULDBLOCK)
 					continue;
@@ -644,9 +663,13 @@ int upnp_impl_wait_response(upnp_impl_t *impl, char *buffer, size_t size, addr_r
 				PLUM_LOG_WARN("UDP recvfrom failed, errno=%d", sockerrno);
 				return PROTOCOL_ERR_NETWORK_FAILED;
 			}
+			return len;
+		}
 
-			if (len > 0) // 0-length datagrams are used to interrupt, ignore them
-				return len;
+		if (pfd[1].revents & POLLIN) {
+			char interrupt_buffer[1];
+			addr_record_t interrupt_src;
+			udp_recvfrom(pfd[1].fd, interrupt_buffer, 1, &interrupt_src);
 		}
 	}
 

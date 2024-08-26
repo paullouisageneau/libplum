@@ -29,6 +29,7 @@ typedef enum { UPNP_INTERRUPT_NONE, UPNP_INTERRUPT_SOFT, UPNP_INTERRUPT_HARD } u
 
 typedef struct {
 	socket_t sock;
+	socket_t interrupt_sock;
 	char external_addr_str[ADDR_MAX_STRING_LEN];
 	char *location_url;
 	int wanipconnection_ver;
