@@ -194,6 +194,7 @@ int net_get_default_gateway(int family, addr_record_t *record) {
 
 					if (rta->rta_type == RTA_GATEWAY) {
 						addr_set_binary(family, RTA_DATA(rta), 0, record);
+						closesocket(sock);
 						return 0;
 					}
 				}
