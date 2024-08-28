@@ -405,7 +405,7 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
 		strcpy(control_url, tmp);
 	}
 
-	PLUM_LOG_DEBUG("UPnP-IGP WANIPConnection:%d control URL: %s", impl->version, control_url);
+	PLUM_LOG_DEBUG("UPnP-IGP %s:%d control URL: %s", impl->service, impl->version, control_url);
 	free(impl->control_url);
 	impl->control_url = malloc(strlen(control_url) + 1);
 	strcpy(impl->control_url, control_url);
