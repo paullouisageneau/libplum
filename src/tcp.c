@@ -124,7 +124,7 @@ int tcp_recv(socket_t sock, char *buffer, size_t size, timestamp_t end_timestamp
 			return -1;
 		}
 
-		if (pfd.revents & POLLIN) {
+		if (pfd.revents & POLLIN || pfd.revents & POLLHUP) {
 #if defined(__APPLE__) || defined(_WIN32)
 			int flags = 0;
 #else
