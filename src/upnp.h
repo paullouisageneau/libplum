@@ -31,8 +31,8 @@ typedef struct {
 	socket_t sock;
 	char external_addr_str[ADDR_MAX_STRING_LEN];
 	char *location_url;
-	char* wanipconnection_service;
-	int wanipconnection_ver;
+	char *service;
+	int version;
 	char *control_url;
 	atomic(upnp_interrupt_t) interrupt;
 } upnp_impl_t;

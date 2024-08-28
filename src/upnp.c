@@ -339,8 +339,8 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
 	const char *service =
 	    xml_find_matching_child(response.body, "service", "serviceType", serviceType);
 	if (service) {
-        impl->wanipconnection_service = "WANIPConnection";
-		impl->wanipconnection_ver = 2;
+        impl->service = "WANIPConnection";
+		impl->version = 2;
 	}
 	if (!service) {
         // Try to find WANPPPConnection:2
@@ -348,8 +348,8 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
         service =
             xml_find_matching_child(response.body, "service", "serviceType", serviceType);
         if (service) {
-            impl->wanipconnection_service = "WANPPPConnection";
-            impl->wanipconnection_ver = 2;
+            impl->service = "WANPPPConnection";
+            impl->version = 2;
         }
 	}
 	if (!service) {
@@ -358,8 +358,8 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
 		service =
 			xml_find_matching_child(response.body, "service", "serviceType", serviceType);
 		if (service) {
-            impl->wanipconnection_service = "WANIPConnection";
-			impl->wanipconnection_ver = 1;
+            impl->service = "WANIPConnection";
+			impl->version = 1;
 		}
 	}
 	if (!service) {
@@ -368,8 +368,8 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
 		service =
 			xml_find_matching_child(response.body, "service", "serviceType", serviceType);
 		if (service) {
-            impl->wanipconnection_service = "WANPPPConnection";
-			impl->wanipconnection_ver = 1;
+            impl->service = "WANPPPConnection";
+			impl->version = 1;
 		}
 	}
     if (!service) {
@@ -405,7 +405,7 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
 		strcpy(control_url, tmp);
 	}
 
-	PLUM_LOG_DEBUG("UPnP-IGP WANIPConnection:%d control URL: %s", impl->wanipconnection_ver, control_url);
+	PLUM_LOG_DEBUG("UPnP-IGP WANIPConnection:%d control URL: %s", impl->version, control_url);
 	free(impl->control_url);
 	impl->control_url = malloc(strlen(control_url) + 1);
 	strcpy(impl->control_url, control_url);
@@ -427,8 +427,8 @@ int upnp_impl_query_external_addr(upnp_impl_t *impl, timestamp_t end_timestamp) 
 
 	char header_buffer[UPNP_BUFFER_SIZE];
 	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
-                              "SOAPAction: urn:schemas-upnp-org:service:%s:1#GetExternalIPAddress\r\n",
-                              impl->wanipconnection_service);
+                              "SOAPAction: urn:schemas-upnp-org:service:%s:%d#GetExternalIPAddress\r\n",
+                              impl->service, impl->version);
 	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request headers");
 		return PROTOCOL_ERR_UNKNOWN;
@@ -442,11 +442,11 @@ int upnp_impl_query_external_addr(upnp_impl_t *impl, timestamp_t end_timestamp) 
                             "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
                             "<s:Body>"
                             "<m:GetExternalIPAddress "
-                            "xmlns:u=\"urn:schemas-upnp-org:service:%s:1\">"
+                            "xmlns:u=\"urn:schemas-upnp-org:service:%s:%d\">"
                             "</m:GetExternalIPAddress>"
                             "</s:Body>"
                             "</s:Envelope>\r\n",
-                            impl->wanipconnection_service);
+                            impl->service, impl->version);
 	if (body_len <= 0 || body_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request body");
 		return PROTOCOL_ERR_UNKNOWN;
@@ -507,8 +507,7 @@ int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t exter
 	char header_buffer[UPNP_BUFFER_SIZE];
 	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
                               "SOAPAction: urn:schemas-upnp-org:service:%s:%d#AddPortMapping\r\n",
-                              impl->wanipconnection_service,
-                              impl->wanipconnection_ver);
+                              impl->service, impl->version);
 	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request headers");
 		return PROTOCOL_ERR_UNKNOWN;
@@ -534,8 +533,7 @@ int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t exter
 	                        "</m:AddPortMapping>"
 	                        "</s:Body>"
 	                        "</s:Envelope>\r\n",
-                            impl->wanipconnection_service,
-	                        impl->wanipconnection_ver,
+                            impl->service, impl->version,
 	                        external_port, protocol == PLUM_IP_PROTOCOL_UDP ? "UDP" : "TCP",
 	                        internal_port, local_str, description, lifetime);
 	if (body_len <= 0 || body_len >= UPNP_BUFFER_SIZE) {
@@ -586,8 +584,7 @@ int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t ext
 	char header_buffer[UPNP_BUFFER_SIZE];
 	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
                               "SOAPAction: urn:schemas-upnp-org:service:%s:%d#DeletePortMapping\r\n",
-                              impl->wanipconnection_service,
-                              impl->wanipconnection_ver);
+                              impl->service, impl->version);
 	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request headers");
 		return PROTOCOL_ERR_UNKNOWN;
@@ -607,8 +604,7 @@ int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t ext
 	                        "</m:DeletePortMapping>"
 	                        "</s:Body>"
 	                        "</s:Envelope>\r\n",
-                            impl->wanipconnection_service,
-	                        impl->wanipconnection_ver, external_port,
+                            impl->service, impl->version, external_port,
                             protocol == PLUM_IP_PROTOCOL_UDP ? "UDP" : "TCP");
 	if (body_len <= 0 || body_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request body");
