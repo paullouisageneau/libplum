@@ -48,7 +48,7 @@ int upnp_init(protocol_state_t *state) {
 	udp_config.enable_broadcast = true;
 	impl->sock = udp_create_socket(&udp_config);
 	if (impl->sock == INVALID_SOCKET) {
-		PLUM_LOG_ERROR("UDP socket creation on port 1900 failed");
+		PLUM_LOG_ERROR("UDP socket creation failed");
 		goto error;
 	}
 
