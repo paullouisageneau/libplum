@@ -44,9 +44,8 @@ int upnp_init(protocol_state_t *state) {
 	udp_socket_config_t udp_config;
 	memset(&udp_config, 0, sizeof(udp_config));
 	udp_config.family = AF_INET;
-	udp_config.port = 1900;
+	udp_config.port = 0; // Binding explicitly to the SSDP port prevents udp_sendto_self from working on Windows
 	udp_config.enable_broadcast = true;
-	udp_config.enable_reuseaddr = true;
 	impl->sock = udp_create_socket(&udp_config);
 	if (impl->sock == INVALID_SOCKET) {
 		PLUM_LOG_ERROR("UDP socket creation on port 1900 failed");
