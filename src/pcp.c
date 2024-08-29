@@ -48,12 +48,12 @@ int pcp_init(protocol_state_t *state) {
 	udp_socket_config_t mcast_udp_config;
 	memset(&mcast_udp_config, 0, sizeof(mcast_udp_config));
 	mcast_udp_config.family = AF_INET;
-	mcast_udp_config.port = 5350;
+	mcast_udp_config.port = PCP_CLIENT_PORT;
 	mcast_udp_config.multicast_group = "224.0.0.1";
 	mcast_udp_config.enable_reuseaddr = true;
 	impl->mcast_sock = udp_create_socket(&mcast_udp_config);
 	if (impl->mcast_sock == INVALID_SOCKET) {
-		PLUM_LOG_ERROR("Multicast UDP socket creation on port 5350 failed");
+		PLUM_LOG_ERROR("Multicast UDP socket creation on port %d failed", PCP_CLIENT_PORT);
 		goto error;
 	}
 
