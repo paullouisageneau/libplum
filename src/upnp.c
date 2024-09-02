@@ -321,10 +321,16 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp) {
 	request.headers = "";
 
 	http_response_t response;
+	memset(&response, 0, sizeof(response));
 	int ret = http_perform(&request, &response, end_timestamp);
 	if (ret < 0) {
-		PLUM_LOG_WARN("Failed to send HTTP request to UPnP-IGD device");
-		return PROTOCOL_ERR_UNKNOWN;
+        if (ret == HTTP_ERR_TIMEOUT) {
+            PLUM_LOG_WARN("Timed-out sending HTTP request to UPnP-IGD device");
+            return PROTOCOL_ERR_TIMEOUT;
+        } else {
+            PLUM_LOG_WARN("Failed to send HTTP request to UPnP-IGD device");
+            return PROTOCOL_ERR_NETWORK_FAILED;
+        }
 	}
 
 	if (ret != 200) {
@@ -455,10 +461,16 @@ int upnp_impl_query_external_addr(upnp_impl_t *impl, timestamp_t end_timestamp) 
 	request.body_type = "text/xml; charset=\"utf-8\"";
 
 	http_response_t response;
+	memset(&response, 0, sizeof(response));
 	int ret = http_perform(&request, &response, end_timestamp);
 	if (ret < 0) {
-		PLUM_LOG_WARN("Failed to send HTTP request to UPnP-IGD device");
-		return PROTOCOL_ERR_NETWORK_FAILED;
+        if (ret == HTTP_ERR_TIMEOUT) {
+            PLUM_LOG_WARN("Timed-out sending HTTP request to UPnP-IGD device");
+            return PROTOCOL_ERR_TIMEOUT;
+        } else {
+            PLUM_LOG_WARN("Failed to send HTTP request to UPnP-IGD device");
+            return PROTOCOL_ERR_NETWORK_FAILED;
+        }
 	}
 
 	if (ret != 200) {
@@ -544,10 +556,16 @@ int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t exter
 	request.body_type = "text/xml; charset=\"utf-8\"";
 
 	http_response_t response;
+	memset(&response, 0, sizeof(response));
 	int ret = http_perform(&request, &response, end_timestamp);
 	if (ret < 0) {
-		PLUM_LOG_WARN("Failed to send HTTP request to UPnP-IGD device");
-		return PROTOCOL_ERR_NETWORK_FAILED;
+        if (ret == HTTP_ERR_TIMEOUT) {
+            PLUM_LOG_WARN("Timed-out sending HTTP request to UPnP-IGD device");
+            return PROTOCOL_ERR_TIMEOUT;
+        } else {
+            PLUM_LOG_WARN("Failed to send HTTP request to UPnP-IGD device");
+            return PROTOCOL_ERR_NETWORK_FAILED;
+        }
 	}
 
 	if (ret != 200) {
@@ -614,10 +632,16 @@ int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t ext
 	request.body_type = "text/xml; charset=\"utf-8\"";
 
 	http_response_t response;
+	memset(&response, 0, sizeof(response));
 	int ret = http_perform(&request, &response, end_timestamp);
 	if (ret < 0) {
-		PLUM_LOG_WARN("Failed to send HTTP request to UPnP-IGD device");
-		return PROTOCOL_ERR_NETWORK_FAILED;
+        if (ret == HTTP_ERR_TIMEOUT) {
+            PLUM_LOG_WARN("Timed-out sending HTTP request to UPnP-IGD device");
+            return PROTOCOL_ERR_TIMEOUT;
+        } else {
+            PLUM_LOG_WARN("Failed to send HTTP request to UPnP-IGD device");
+            return PROTOCOL_ERR_NETWORK_FAILED;
+        }
 	}
 
 	if (ret != 200) {

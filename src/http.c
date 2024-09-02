@@ -24,12 +24,13 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
                  timestamp_t end_timestamp, int redirections) {
 	const char *scheme = "http://";
 	const size_t scheme_len = strlen(scheme);
+    int ret = HTTP_ERR_UNKNOWN;
 
 	const char *url = request->url;
 	const size_t url_len = strlen(url);
 	if (strncmp(url, scheme, scheme_len) != 0) {
 		PLUM_LOG_WARN("HTTP request URL is invalid: %s", request->url);
-		return -1;
+		return ret;
 	}
 
 	const char *path = strchr(url + scheme_len, '/');
@@ -40,7 +41,7 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 	int host_len = (int)(path - (url + scheme_len));
 	if (snprintf(host, HTTP_MAX_HOST_LEN, "%.*s", host_len, url + scheme_len) != host_len) {
 		PLUM_LOG_WARN("Failed to retrieve HTTP host from URL");
-		return -1;
+		return ret;
 	}
 
 	const char *service;
@@ -56,7 +57,7 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 	int n = addr_resolve(host, service, records, HTTP_MAX_RECORDS);
 	if (n <= 0) {
 		PLUM_LOG_WARN("Failed to resolve HTTP host %s:%s", host, service);
-		return -1;
+		return ret;
 	}
 	if (n > HTTP_MAX_RECORDS)
 		n = HTTP_MAX_RECORDS;
@@ -71,7 +72,7 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 
 	if (sock == INVALID_SOCKET) {
 		PLUM_LOG_WARN("Failed to connect to HTTP host %s:%s", host, service);
-		return -1;
+		return ret;
 	}
 
 	size_t size = DEFAULT_BUFFER_SIZE;
@@ -111,15 +112,20 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 	PLUM_LOG_VERBOSE("Sending HTTP request: %s%s", buffer,
 	                 request->body_size > 0 ? request->body : "");
 
-	if (tcp_send(sock, buffer, len, end_timestamp) != len) {
-		PLUM_LOG_WARN("Failed to send HTTP request");
+    int sent;
+	if ((sent = tcp_send(sock, buffer, len, end_timestamp)) != len) {
+        PLUM_LOG_WARN("Failed to send HTTP request");
+        if (sent == TCP_ERR_TIMEOUT)
+            ret = HTTP_ERR_TIMEOUT;
 		goto error;
 	}
 
 	if (request->body_size > 0) {
-		if (tcp_send(sock, request->body, request->body_size, end_timestamp) !=
+		if ((sent = tcp_send(sock, request->body, request->body_size, end_timestamp)) !=
 		    (int)request->body_size) {
-			PLUM_LOG_WARN("Failed to send HTTP request body");
+            PLUM_LOG_WARN("Failed to send HTTP request body");
+            if (sent == TCP_ERR_TIMEOUT)
+                ret = HTTP_ERR_TIMEOUT;
 			goto error;
 		}
 	}
@@ -150,7 +156,9 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 	}
 
 	if (len < 0) {
-		PLUM_LOG_WARN("Failed to receive HTTP response");
+        PLUM_LOG_WARN("Failed to receive HTTP response");
+        if (len == TCP_ERR_TIMEOUT)
+            ret = HTTP_ERR_TIMEOUT;
 		goto error;
 	}
 
@@ -218,7 +226,7 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 error:
 	free(buffer);
 	closesocket(sock);
-	return -1;
+	return ret;
 }
 
 int http_perform(const http_request_t *request, http_response_t *response,

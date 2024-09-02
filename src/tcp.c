@@ -112,7 +112,7 @@ int tcp_recv(socket_t sock, char *buffer, size_t size, timestamp_t end_timestamp
 				continue;
 			} else {
 				PLUM_LOG_ERROR("poll failed, errno=%d", sockerrno);
-				return -1;
+				return TCP_ERR_UNKNOWN;
 			}
 		}
 
@@ -121,7 +121,7 @@ int tcp_recv(socket_t sock, char *buffer, size_t size, timestamp_t end_timestamp
 
 		if (pfd.revents & POLLNVAL || pfd.revents & POLLERR) {
 			PLUM_LOG_ERROR("Error when polling socket");
-			return -1;
+			return TCP_ERR_UNKNOWN;
 		}
 
 		if (pfd.revents & POLLIN || pfd.revents & POLLHUP) {
@@ -136,7 +136,7 @@ int tcp_recv(socket_t sock, char *buffer, size_t size, timestamp_t end_timestamp
 					continue;
 
 				PLUM_LOG_WARN("TCP recv failed, errno=%d", sockerrno);
-				return -1;
+				return TCP_ERR_UNKNOWN;
 			}
 
 			return len;
@@ -145,7 +145,7 @@ int tcp_recv(socket_t sock, char *buffer, size_t size, timestamp_t end_timestamp
 
 	// Timeout
 	PLUM_LOG_WARN("TCP recv timeout");
-	return -1;
+	return TCP_ERR_TIMEOUT;
 }
 
 int tcp_send(socket_t sock, const char *data, size_t size, timestamp_t end_timestamp) {
@@ -166,7 +166,7 @@ int tcp_send(socket_t sock, const char *data, size_t size, timestamp_t end_times
 				continue;
 			} else {
 				PLUM_LOG_ERROR("poll failed, errno=%d", sockerrno);
-				return -1;
+				return TCP_ERR_UNKNOWN;
 			}
 		}
 
@@ -175,7 +175,7 @@ int tcp_send(socket_t sock, const char *data, size_t size, timestamp_t end_times
 
 		if (pfd.revents & POLLNVAL || pfd.revents & POLLERR) {
 			PLUM_LOG_ERROR("Error when polling socket");
-			return -1;
+			return TCP_ERR_UNKNOWN;
 		}
 
 		if (pfd.revents & POLLOUT) {
@@ -190,7 +190,7 @@ int tcp_send(socket_t sock, const char *data, size_t size, timestamp_t end_times
 					continue;
 
 				PLUM_LOG_WARN("TCP send failed, errno=%d", sockerrno);
-				return -1;
+				return TCP_ERR_UNKNOWN;
 			}
 
 			data += len;
@@ -204,5 +204,5 @@ int tcp_send(socket_t sock, const char *data, size_t size, timestamp_t end_times
 	// Timeout
 	PLUM_LOG_WARN("TCP send timeout");
 	size_t sent = size - left;
-	return sent == 0 ? -1 : (int)sent;
+	return sent == 0 ? TCP_ERR_TIMEOUT : (int)sent;
 }
