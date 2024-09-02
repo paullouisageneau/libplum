@@ -51,6 +51,29 @@ static char *my_stristr(const char *haystack, const char *needle) {
 	return NULL;
 }
 
+static char *xml_remove_attributes(const char *str) {
+    if (!str)
+        return NULL;
+    char *str2 = malloc(strlen(str)+1);
+    const char *p1 = str;
+    char *p2 = str2;
+    bool inside_tag = false;
+    bool skip_chars = false;
+    while (*p1 != '\0') {
+        if (*p1 == '<')
+            inside_tag = true;
+        else if (*p1 == ' ' && inside_tag)
+            skip_chars = true;
+        else if (*p1 == '>')
+            inside_tag = skip_chars = false;
+        if (!skip_chars)
+            *p2++ = *p1;
+        p1++;
+    }
+    *p2 = '\0';
+    return str2;
+}
+
 const char *my_find(const char *str, const char *before, bool case_insensitive) {
 	return case_insensitive ? my_stristr(str, before) : strstr(str, before);
 }
@@ -105,7 +128,10 @@ int xml_extract(const char *str, const char *tag, char *buffer, size_t size) {
 	if (ret < 0 || ret >= PATTERN_BUFFER_SIZE)
 		return -1;
 
-	return string_extract(str, before, after, buffer, size, true); // case-insensitive
+    char *str2 = xml_remove_attributes(str);
+	ret = string_extract(str2, before, after, buffer, size, true); // case-insensitive
+    free(str2);
+    return ret;
 }
 
 const char *xml_find_matching_child(const char *str, const char *tag, const char *child_tag,
@@ -133,7 +159,8 @@ const char *xml_find_matching_child(const char *str, const char *tag, const char
 	if (ret < 0 || ret >= PATTERN_BUFFER_SIZE)
 		return NULL;
 
-	const char *pos = str;
+    char *str2 = xml_remove_attributes(str);
+	const char *pos = str2;
 	while ((pos = my_find(pos, before, true))) {
 		pos += strlen(before);
 
@@ -149,10 +176,13 @@ const char *xml_find_matching_child(const char *str, const char *tag, const char
 			if (!child_end)
 				child_end = end;
 
-			if (strncmp(child_value, child_pos, child_end - child_pos) == 0)
+			if (strncmp(child_value, child_pos, child_end - child_pos) == 0) {
+                free(str2);
 				return pos;
+            }
 		}
 	}
+    free(str2);
 
 	return NULL;
 }
