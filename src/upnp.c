@@ -220,7 +220,8 @@ int upnp_interrupt(protocol_state_t *state, bool hard) {
 	PLUM_LOG_VERBOSE("Interrupting UPnP operation");
 	atomic_store(&impl->interrupt, hard ? UPNP_INTERRUPT_HARD : UPNP_INTERRUPT_SOFT);
 
-	if (udp_sendto_self(impl->sock, NULL, 0) < 0) {
+	char dummy = 0; // Some C libraries might error out on NULL pointers
+	if (udp_sendto_self(impl->sock, &dummy, 0) < 0) {
 		if (sockerrno != SEAGAIN && sockerrno != SEWOULDBLOCK) {
 			PLUM_LOG_WARN("Failed to interrupt UPnP operation by triggering socket, errno=%d",
 			              sockerrno);
