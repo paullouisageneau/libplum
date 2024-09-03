@@ -15,6 +15,9 @@
 
 #include <stdint.h>
 
+#define TCP_ERR_UNKNOWN -1
+#define TCP_ERR_TIMEOUT -2
+
 socket_t tcp_connect_socket(const addr_record_t *remote_addr, timestamp_t end_timestamp);
 int tcp_recv(socket_t sock, char *buffer, size_t size, timestamp_t end_timestamp);
 int tcp_send(socket_t sock, const char *data, size_t size, timestamp_t end_timestamp);

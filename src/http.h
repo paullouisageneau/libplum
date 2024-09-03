@@ -15,6 +15,9 @@
 #define HTTP_MAX_HOST_LEN 256
 #define HTTP_MAX_URL_LEN 1024
 
+#define HTTP_ERR_UNKNOWN -1
+#define HTTP_ERR_TIMEOUT -2
+
 typedef enum http_method {
 	HTTP_METHOD_GET,
 	HTTP_METHOD_POST,
