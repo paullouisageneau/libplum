@@ -103,7 +103,7 @@ void client_destroy(client_t *client) {
 	PLUM_LOG_DEBUG("Destroying client...");
 
 	if (client->is_started) {
-		client_interrupt(client, true); // stop
+		client_interrupt(client, false);
 		thread_join(client->thread, NULL);
 	}
 
