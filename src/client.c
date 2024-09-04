@@ -103,7 +103,7 @@ void client_destroy(client_t *client) {
 	PLUM_LOG_DEBUG("Destroying client...");
 
 	if (client->is_started) {
-		client_interrupt(client, false);
+		client_interrupt(client, true); // stop
 		thread_join(client->thread, NULL);
 	}
 
@@ -490,7 +490,7 @@ int client_interrupt(client_t *client, bool stop) {
 		atomic_store(&client->is_stopping, true);
 
 	if (client->protocol) {
-		int err = client->protocol->interrupt(&client->protocol_state, stop);
+		int err = client->protocol->interrupt(&client->protocol_state, false);
 		if (err < 0) {
 			mutex_unlock(&client->protocol_mutex);
 			return err;
