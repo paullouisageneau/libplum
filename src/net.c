@@ -20,10 +20,14 @@
 #include <linux/rtnetlink.h>
 #define NETLINK_BUFFER_SIZE 8192
 #elif defined(__APPLE__)
-#include <sys/sysctl.h>
-#include <sys/socket.h>
-#include <net/route.h>
-#include <netinet/in.h>
+#include <TargetConditionals.h>
+# if TARGET_OS_OSX
+# include <sys/sysctl.h>
+# include <sys/socket.h>
+# include <net/route.h>
+# include <netinet/in.h>
+# define HAVE_OSX_NET_ROUTE
+# endif
 #endif
 
 int net_get_default_interface(int family, addr_record_t *record) {
@@ -211,7 +215,7 @@ error:
 	closesocket(sock);
 	return -1;
 
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) && defined(HAVE_OSX_NET_ROUTE)
 
 	// macOS always uses 4-byte alignment for sockaddrs following message header
 	#define ROUNDUP(a) \
