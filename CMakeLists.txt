@@ -8,6 +8,10 @@ option(NO_EXAMPLE "Disable example build" OFF)
 option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
+if(MSVC)
+	option(PLUM_STATIC_RUNTIME "Build with static runtime library." OFF)
+endif()
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -133,7 +137,23 @@ if (NOT BUILD_SHARED_LIBS)
 endif()
 target_compile_definitions(plum-static PRIVATE PLUM_EXPORTS PUBLIC PLUM_STATIC)
 
-if(NOT MSVC)
+if(MSVC)
+	if(PLUM_STATIC_RUNTIME)
+		# Set compiler options.
+		set(variables
+			CMAKE_C_FLAGS_DEBUG
+			CMAKE_C_FLAGS_MINSIZEREL
+			CMAKE_C_FLAGS_RELEASE
+			CMAKE_C_FLAGS_RELWITHDEBINFO
+		)
+		# Replace the RuntimeLibrary option with the static alternative (not DLL) via the compiler options.
+		foreach(variable ${variables})
+			if(${variable} MATCHES "/MD")
+				string(REGEX REPLACE "/MD" "/MT" ${variable} "${${variable}}")
+			endif()
+		endforeach()
+	endif()
+else()
 	target_compile_options(plum PRIVATE -Wall -Wextra)
 	target_compile_options(plum-static PRIVATE -Wall -Wextra)
 endif()
