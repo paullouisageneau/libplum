@@ -74,7 +74,15 @@ thread_return_t THREAD_CALL client_thread_entry(void *arg) {
 }
 
 client_t *client_create(void) {
-	PLUM_LOG_DEBUG("Creating client...");
+	PLUM_LOG_DEBUG("Creating client");
+
+#ifdef _WIN32
+	WSADATA wsaData;
+	if (WSAStartup(MAKEWORD(2, 2), &wsaData)) {
+		PLUM_LOG_FATAL("WSAStartup failed");
+		return NULL;
+	}
+#endif
 
 	client_t *client = malloc(sizeof(client_t));
 	if (!client) {
@@ -100,7 +108,7 @@ client_t *client_create(void) {
 }
 
 void client_destroy(client_t *client) {
-	PLUM_LOG_DEBUG("Destroying client...");
+	PLUM_LOG_DEBUG("Destroying client");
 
 	if (client->is_started) {
 		client_interrupt(client, true); // stop
@@ -112,6 +120,12 @@ void client_destroy(client_t *client) {
 
 	free(client->mappings);
 	free(client);
+
+#ifdef _WIN32
+	WSACleanup();
+#endif
+
+	PLUM_LOG_VERBOSE("Destroyed client");
 }
 
 int client_start(client_t *client) {
