@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.7)
 project (libplum
-	VERSION 0.4.0
+	VERSION 0.5.0
 	LANGUAGES C)
 set(PROJECT_DESCRIPTION "Multi-protocol Port Mapping client library")
 
