@@ -106,6 +106,11 @@ int pcp_discover(protocol_state_t *state, timediff_t duration) {
 		} else {
 			PLUM_LOG_DEBUG("Probing PCP...");
 			err = pcp_impl_probe(impl, &state->gateway, probe_end_timestamp);
+			if (err == PROTOCOL_ERR_NEED_DOWNGRADE) {
+				PLUM_LOG_DEBUG("Falling back to NAT-PMP");
+				impl->use_natpmp = true;
+				continue;
+			}
 		}
 		if (err == PROTOCOL_ERR_SUCCESS) {
 			if (PLUM_LOG_INFO_ENABLED) {
@@ -331,13 +336,25 @@ int pcp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t e
 		}
 
 		uint8_t result = common_header->result;
+		uint8_t version = common_header->version;
 		if (result != PCP_RESULT_SUCCESS) {
-			PLUM_LOG_WARN("Got PCP error response, result=%u", (unsigned int)result);
-
-			if (result == PCP_RESULT_UNSUPP_VERSION)
-				return PROTOCOL_ERR_UNSUPP_VERSION;
-			else
-				return PROTOCOL_ERR_PROTOCOL_FAILED; // TODO
+			if (result == PCP_RESULT_UNSUPP_VERSION) {
+				if (version == 0) {
+					// RFC 6887 9. Version Negotiation:
+					// If the version number in the UNSUPP_VERSION response is zero then that means
+					// this is a NAT-PMP server [RFC6886], and a client MAY choose to communicate
+					// with it using the older NAT-PMP protocol
+					PLUM_LOG_DEBUG("PCP is not supported, server is NAT-PMP only");
+					return PROTOCOL_ERR_NEED_DOWNGRADE;
+				} else {
+					PLUM_LOG_WARN("PCP server version is unsupported, version=%u",
+					              (unsigned int)version);
+					return PROTOCOL_ERR_UNSUPP_VERSION;
+				}
+			} else {
+				PLUM_LOG_WARN("Got PCP error response, result=%u", (unsigned int)result);
+				return PROTOCOL_ERR_PROTOCOL_FAILED;
+			}
 		}
 
 		const struct pcp_response_header *header = (const struct pcp_response_header *)buffer;
