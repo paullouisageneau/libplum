@@ -3,7 +3,7 @@
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-blue.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
 [![Build](https://github.com/paullouisageneau/libplum/actions/workflows/build.yml/badge.svg)](https://github.com/paullouisageneau/libplum/actions/workflows/build.yml)
 
-libplum (_Port Lightweight and Universal Mapping_) is a high-level library allowing to forward ports on Network Address Translators (NAT). It is written in C without dependencies and supports POSIX platforms (including GNU/Linux, Android, Apple macOS and iOS) and Microsoft Windows.
+libplum (_Port Lightweight and Universal Mapping_) is a high-level library allowing to forward ports on Network Address Translators (NAT). It is written in C without dependencies and supports multiple platforms, including GNU/Linux, Android, Apple macOS, iOS, and Microsoft Windows.
 
 libplum has Node.js bindings, see [node-portmapping](https://github.com/paullouisageneau/node-portmapping).
 
