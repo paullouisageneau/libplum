@@ -449,7 +449,7 @@ int upnp_impl_query_external_addr(upnp_impl_t *impl, timestamp_t end_timestamp) 
                             "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
                             "<s:Body>"
                             "<m:GetExternalIPAddress "
-                            "xmlns:u=\"urn:schemas-upnp-org:service:%s:%d\">"
+                            "xmlns:m=\"urn:schemas-upnp-org:service:%s:%d\">"
                             "</m:GetExternalIPAddress>"
                             "</s:Body>"
                             "</s:Envelope>\r\n",
