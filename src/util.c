@@ -105,7 +105,7 @@ int header_extract(const char *str, const char *name, char *buffer, size_t size)
 		return -1;
 
 	char before[PATTERN_BUFFER_SIZE];
-	int ret = snprintf(before, PATTERN_BUFFER_SIZE, "%s:", name);
+	int ret = snprintf(before, PATTERN_BUFFER_SIZE, "\r\n%s:", name);
 	if (ret < 0 || ret >= PATTERN_BUFFER_SIZE)
 		return -1;
 

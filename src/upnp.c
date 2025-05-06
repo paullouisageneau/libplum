@@ -245,9 +245,10 @@ int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t
 	int len = snprintf(buffer, UPNP_BUFFER_SIZE,
 	                   "M-SEARCH * HTTP/1.1\r\n"
 	                   "HOST: %s\r\n"
-	                   "MAN: ssdp:discover\r\n"
+	                   "MAN: \"ssdp:discover\"\r\n"
 	                   "MX: 10\r\n"
-	                   "ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n",
+	                   "ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n"
+					   "\r\n",
 	                   broadcast_str);
 
 	if (len <= 0 || len >= UPNP_BUFFER_SIZE) {
@@ -448,7 +449,7 @@ int upnp_impl_query_external_addr(upnp_impl_t *impl, timestamp_t end_timestamp) 
                             "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
                             "<s:Body>"
                             "<m:GetExternalIPAddress "
-                            "xmlns:u=\"urn:schemas-upnp-org:service:%s:%d\">"
+                            "xmlns:m=\"urn:schemas-upnp-org:service:%s:%d\">"
                             "</m:GetExternalIPAddress>"
                             "</s:Body>"
                             "</s:Envelope>\r\n",
