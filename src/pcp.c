@@ -330,11 +330,6 @@ int pcp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t e
 			continue;
 		}
 
-		if (len < (int)sizeof(struct pcp_response_header)) {
-			PLUM_LOG_WARN("Announce response of length %d is too short", len);
-			continue;
-		}
-
 		uint8_t result = common_header->result;
 		uint8_t version = common_header->version;
 		if (result != PCP_RESULT_SUCCESS) {
@@ -355,6 +350,11 @@ int pcp_impl_probe(pcp_impl_t *impl, addr_record_t *found_gateway, timestamp_t e
 				PLUM_LOG_WARN("Got PCP error response, result=%u", (unsigned int)result);
 				return PROTOCOL_ERR_PROTOCOL_FAILED;
 			}
+		}
+
+		if (len < (int)sizeof(struct pcp_response_header)) {
+			PLUM_LOG_WARN("Announce response of length %d is too short", len);
+			continue;
 		}
 
 		const struct pcp_response_header *header = (const struct pcp_response_header *)buffer;
