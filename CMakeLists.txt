@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.7)
+cmake_minimum_required(VERSION 3.7...4.0)
 project (libplum
 	VERSION 0.5.1
 	LANGUAGES C)
