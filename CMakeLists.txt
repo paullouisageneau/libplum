@@ -4,8 +4,8 @@ project (libplum
 	LANGUAGES C)
 set(PROJECT_DESCRIPTION "Multi-protocol Port Mapping client library")
 
-option(NO_EXAMPLE "Disable example build" OFF)
-option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
+option(PLUM_NO_EXAMPLE "Disable example build" OFF)
+option(PLUM_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
 if(MSVC)
@@ -158,7 +158,7 @@ else()
 	target_compile_options(plum-static PRIVATE -Wall -Wextra)
 endif()
 
-if(WARNINGS_AS_ERRORS)
+if(PLUM_WARNINGS_AS_ERRORS)
 	if(MSVC)
 		target_compile_options(plum PRIVATE /WX)
 		target_compile_options(plum-static PRIVATE /WX)
@@ -169,7 +169,7 @@ if(WARNINGS_AS_ERRORS)
 endif()
 
 # Example
-if(NOT NO_EXAMPLE)
+if(NOT PLUM_NO_EXAMPLE)
 	add_executable(plum-example ${EXAMPLE_SOURCES})
 	target_include_directories(plum-example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/plum)
 
