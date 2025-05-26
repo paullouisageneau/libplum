@@ -190,7 +190,7 @@ int net_get_default_gateway(int family, addr_record_t *record) {
 			}
 
 			rtm = (struct rtmsg *)NLMSG_DATA(nlmsg);
-			if (rtm->rtm_table == RT_TABLE_MAIN && rtm->rtm_dst_len == 0) {
+			if ((rtm->rtm_table == RT_TABLE_MAIN || rtm->rtm_table == RT_TABLE_COMPAT) && rtm->rtm_dst_len == 0) {
 				struct rtattr *rta;
 				int payload_len = RTM_PAYLOAD(nlmsg);
 				for (rta = (struct rtattr *)RTM_RTA(rtm); RTA_OK(rta, payload_len);
@@ -243,7 +243,7 @@ error:
 		free(buf);
 		return -1;
 	}
-	
+
 	int ret = -1;
 	struct rt_msghdr *rtm = NULL;
 	char *buf_limit = (buf + buf_len);
