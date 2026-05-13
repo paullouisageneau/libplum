@@ -341,7 +341,7 @@ void client_run(client_t *client) {
 		if (err == PROTOCOL_ERR_SUCCESS) {
 			mutex_unlock(&client->protocol_mutex);
 			err = client_run_protocol(client, client->protocol, &client->protocol_state,
-			                          CLIENT_RECHECK_PERIOD);
+			                          client->recheck_period);
 			mutex_lock(&client->protocol_mutex);
 		}
 
@@ -388,7 +388,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
                         protocol_state_t *protocol_state, timediff_t duration) {
 	timestamp_t end_timestamp = current_timestamp() + duration;
 
-	int err = protocol->discover(protocol_state, CLIENT_MAX_DISCOVER_TIMEOUT);
+	int err = protocol->discover(protocol_state, client->discover_timeout);
 	if (err != PROTOCOL_ERR_SUCCESS)
 		return err;
 
@@ -415,7 +415,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 			if (mapping.state == PLUM_STATE_DESTROYING) {
 				PLUM_LOG_INFO("Performing unmapping for internal port %hu", mapping.internal_port);
 
-				err = protocol->unmap(protocol_state, &mapping, CLIENT_MAX_MAPPING_TIMEOUT);
+				err = protocol->unmap(protocol_state, &mapping, client->mapping_timeout);
 				if (err != PROTOCOL_ERR_SUCCESS)
 					return err;
 
@@ -430,7 +430,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 				PLUM_LOG_INFO("Performing mapping for internal port %hu", mapping.internal_port);
 
 				protocol_map_output_t output;
-				err = protocol->map(protocol_state, &mapping, &output, CLIENT_MAX_MAPPING_TIMEOUT);
+				err = protocol->map(protocol_state, &mapping, &output, client->mapping_timeout);
 				if (err != PROTOCOL_ERR_SUCCESS)
 					return err;
 
@@ -479,8 +479,8 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 		timestamp_t now = current_timestamp();
 		if (now < next_timestamp) {
 			timediff_t diff = next_timestamp - now;
-			if (diff > CLIENT_RECHECK_PERIOD)
-				diff = CLIENT_RECHECK_PERIOD;
+			if (diff > client->recheck_period)
+				diff = client->recheck_period;
 
 			err = protocol->idle(protocol_state, diff);
 			if (err != PROTOCOL_ERR_SUCCESS && err != PROTOCOL_ERR_TIMEOUT)

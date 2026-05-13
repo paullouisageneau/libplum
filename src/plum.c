@@ -36,6 +36,10 @@ PLUM_EXPORT int plum_init(const plum_config_t *config) {
 	if (!client)
 		return PLUM_ERR_FAILED;
 
+	client->discover_timeout = config->discover_timeout > 0 ? config->discover_timeout : CLIENT_MAX_DISCOVER_TIMEOUT;
+	client->mapping_timeout  = config->mapping_timeout  > 0 ? config->mapping_timeout  : CLIENT_MAX_MAPPING_TIMEOUT;
+	client->recheck_period   = config->recheck_period   > 0 ? config->recheck_period   : CLIENT_RECHECK_PERIOD;
+
 	return PLUM_ERR_SUCCESS;
 }
 

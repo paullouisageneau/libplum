@@ -57,6 +57,9 @@ typedef struct {
 	plum_log_level_t log_level;
 	plum_log_callback_t log_callback; // NULL means stdout
 	const char *dummytls_domain;      // NULL means disabled
+	int discover_timeout; // msecs, 0 means use default (10000)
+	int mapping_timeout;  // msecs, 0 means use default (10000)
+	int recheck_period;   // msecs, 0 means use default (300000)
 } plum_config_t;
 
 PLUM_EXPORT int plum_init(const plum_config_t *config);

@@ -41,6 +41,9 @@ typedef struct {
 	bool is_started;
 	atomic(bool) is_stopping;
 	thread_t thread;
+	timediff_t discover_timeout;
+	timediff_t mapping_timeout;
+	timediff_t recheck_period;
 } client_t;
 
 client_t *client_create(void);
