@@ -44,6 +44,10 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 		return ret;
 	}
 
+	// Keep the original "host[:port]" string for the Host header before stripping the port
+	char host_header[HTTP_MAX_HOST_LEN];
+	memcpy(host_header, host, host_len + 1);
+
 	const char *service;
 	char *separator = strchr(host, ':');
 	if (separator) {
@@ -93,7 +97,7 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 		               "Content-Length: %zu\r\n"
 		               "Content-Type: %s\r\n"
 		               "%s\r\n",
-		               method_str, *path != '\0' ? path : "/", host, request->body_size,
+		               method_str, *path != '\0' ? path : "/", host_header, request->body_size,
 		               request->body_type, request->headers ? request->headers : "");
 	else
 		len = snprintf(buffer, size,
@@ -101,7 +105,7 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 		               "Host: %s\r\n"
 		               "Connection: close\r\n"
 		               "%s\r\n",
-		               method_str, *path != '\0' ? path : "/", host,
+		               method_str, *path != '\0' ? path : "/", host_header,
 		               request->headers ? request->headers : "");
 
 	if (len < 0 || (size_t)len >= size) {
