@@ -438,8 +438,8 @@ int upnp_impl_query_external_addr(upnp_impl_t *impl, timestamp_t end_timestamp) 
 
 	char header_buffer[UPNP_BUFFER_SIZE];
 	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
-                              "SOAPAction: urn:schemas-upnp-org:service:%s:%d#GetExternalIPAddress\r\n",
-                              impl->service, impl->version);
+	                          "SOAPAction: \"urn:schemas-upnp-org:service:%s:%d#GetExternalIPAddress\"\r\n",
+	                          impl->service, impl->version);
 	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request headers");
 		return PROTOCOL_ERR_UNKNOWN;
@@ -523,13 +523,13 @@ int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t exter
 
 	char header_buffer[UPNP_BUFFER_SIZE];
 	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
-                              "SOAPAction: urn:schemas-upnp-org:service:%s:%d#AddPortMapping\r\n",
-                              impl->service, impl->version);
+	                          "SOAPAction: \"urn:schemas-upnp-org:service:%s:%d#AddPortMapping\"\r\n",
+	                          impl->service, impl->version);
 	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request headers");
 		return PROTOCOL_ERR_UNKNOWN;
 	}
-    request.headers = header_buffer;
+	request.headers = header_buffer;
 
 	char body_buffer[UPNP_BUFFER_SIZE];
 	int body_len = snprintf(body_buffer, UPNP_BUFFER_SIZE,
@@ -606,13 +606,13 @@ int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t ext
 
 	char header_buffer[UPNP_BUFFER_SIZE];
 	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
-                              "SOAPAction: urn:schemas-upnp-org:service:%s:%d#DeletePortMapping\r\n",
-                              impl->service, impl->version);
+	                          "SOAPAction: \"urn:schemas-upnp-org:service:%s:%d#DeletePortMapping\"\r\n",
+	                          impl->service, impl->version);
 	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request headers");
 		return PROTOCOL_ERR_UNKNOWN;
 	}
-    request.headers = header_buffer;
+	request.headers = header_buffer;
 
 	char body_buffer[UPNP_BUFFER_SIZE];
 	int body_len = snprintf(body_buffer, UPNP_BUFFER_SIZE,
