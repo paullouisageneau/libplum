@@ -166,10 +166,23 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 	PLUM_LOG_VERBOSE("Received HTTP response: %s", buffer);
 
 	int code = 0;
-	if (sscanf(buffer, "HTTP/%*s %d %*s\n%n", &code, &len) != 1 || code <= 0) {
+	int header_len = 0;
+	// Parse status line: "HTTP/<version> <code> [reason]\r\n"
+	// %*s matches the version, then optionally skip the reason phrase.
+	// We use two patterns to handle responses with and without a reason phrase.
+	if (sscanf(buffer, "HTTP/%*s %d %*[^\r\n]%n", &code, &header_len) < 1 &&
+	    sscanf(buffer, "HTTP/%*s %d%n", &code, &header_len) < 1) {
 		PLUM_LOG_WARN("Failed to parse HTTP response status");
 		goto error;
 	}
+	if (code <= 0) {
+		PLUM_LOG_WARN("Failed to parse HTTP response status");
+		goto error;
+	}
+	// Find the end of the status line to advance past \r\n
+	const char *eol = strstr(buffer + header_len, "\r\n");
+	if (!eol) eol = strstr(buffer + header_len, "\n");
+	len = eol ? (int)(eol - buffer) + (eol[0] == '\r' ? 2 : 1) : header_len;
 
 	PLUM_LOG_DEBUG("Got HTTP response code %d", code);
 

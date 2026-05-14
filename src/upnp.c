@@ -241,15 +241,19 @@ int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t
 	char broadcast_str[ADDR_MAX_STRING_LEN];
 	addr_record_to_string(&broadcast, broadcast_str, ADDR_MAX_STRING_LEN);
 
+	timediff_t remaining = end_timestamp - current_timestamp();
+	int mx = (int)(remaining / 1000);
+	if (mx < 1) mx = 1;
+
 	char buffer[UPNP_BUFFER_SIZE];
 	int len = snprintf(buffer, UPNP_BUFFER_SIZE,
 	                   "M-SEARCH * HTTP/1.1\r\n"
 	                   "HOST: %s\r\n"
 	                   "MAN: \"ssdp:discover\"\r\n"
-	                   "MX: 10\r\n"
+	                   "MX: %d\r\n"
 	                   "ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n"
 					   "\r\n",
-	                   broadcast_str);
+	                   broadcast_str, mx);
 
 	if (len <= 0 || len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to write SSDP message to buffer");
