@@ -94,6 +94,7 @@ int pcp_discover(protocol_state_t *state, timediff_t duration) {
 	// the interval between attempts doubling each time.
 	int probe_count = 0;
 	timediff_t probe_duration = 250;
+probe_retry:
 	do {
 		timestamp_t probe_end_timestamp = current_timestamp() + probe_duration;
 		if (probe_end_timestamp > end_timestamp)
@@ -129,6 +130,14 @@ int pcp_discover(protocol_state_t *state, timediff_t duration) {
 
 		probe_duration *= 2;
 	} while (++probe_count < PCP_MAX_ATTEMPTS && current_timestamp() < end_timestamp);
+
+	if (!impl->use_natpmp) {
+		PLUM_LOG_DEBUG("PCP timed out with no response, trying NAT-PMP");
+		impl->use_natpmp = true;
+		probe_count = 0;
+		probe_duration = 250;
+		goto probe_retry;
+	}
 
 	return PROTOCOL_ERR_TIMEOUT;
 }
