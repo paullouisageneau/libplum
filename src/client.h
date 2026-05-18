@@ -21,6 +21,7 @@
 
 typedef struct client_mapping {
 	plum_ip_protocol_t protocol;
+	plum_mapping_protocol_t mapping_protocol;
 	uint16_t internal_port;
 	addr_record_t suggested_addr;
 	addr_record_t external_addr;

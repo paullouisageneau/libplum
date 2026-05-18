@@ -487,6 +487,8 @@ int pcp_impl_map(pcp_impl_t *impl, const client_mapping_t *mapping, protocol_map
 			lifetime = response_lifetime;
 
 		output->state = PROTOCOL_MAP_STATE_SUCCESS;
+		output->mapping_protocol =
+		    impl->use_natpmp ? PLUM_MAPPING_PROTOCOL_NATPMP : PLUM_MAPPING_PROTOCOL_PCP;
 
 		// RFC 6887: The PCP client SHOULD renew the mapping before its expiry time; otherwise, it
 		// will be removed by the PCP server. To reduce the risk of inadvertent synchronization of

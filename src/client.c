@@ -58,6 +58,7 @@ static void import_mapping(const plum_mapping_t *mapping, plum_mapping_callback_
 static void export_mapping(const client_mapping_t *cm, plum_mapping_t *mapping) {
 	memset(mapping, 0, sizeof(*mapping));
 	mapping->protocol = cm->protocol;
+	mapping->mapping_protocol = cm->mapping_protocol;
 	mapping->internal_port = cm->internal_port;
 	mapping->user_ptr = cm->user_ptr;
 	if (cm->external_addr.len > 0) {
@@ -456,6 +457,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 				free(cm->impl_record);
 				cm->impl_record = output.impl_record;
 				cm->refresh_timestamp = output.refresh_timestamp;
+				cm->mapping_protocol = output.mapping_protocol;
 
 				if (cm->state != PLUM_STATE_DESTROYING) { // mapping might have been destroyed
 					if (output.state == PROTOCOL_MAP_STATE_SUCCESS) {

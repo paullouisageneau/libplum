@@ -39,6 +39,7 @@ typedef enum {
 
 typedef struct {
 	protocol_map_state_t state;
+	plum_mapping_protocol_t mapping_protocol;
 	addr_record_t external_addr;
 	timestamp_t refresh_timestamp;
 	void *impl_record;

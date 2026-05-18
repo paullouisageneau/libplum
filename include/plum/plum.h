@@ -78,11 +78,20 @@ typedef enum {
 	PLUM_STATE_DESTROYING = 4
 } plum_state_t;
 
+typedef enum {
+	PLUM_MAPPING_PROTOCOL_UNKNOWN = 0,
+	PLUM_MAPPING_PROTOCOL_PCP = 1,
+	PLUM_MAPPING_PROTOCOL_NATPMP = 2,
+	PLUM_MAPPING_PROTOCOL_UPNP = 3,
+	PLUM_MAPPING_PROTOCOL_DIRECT = 4
+} plum_mapping_protocol_t;
+
 #define PLUM_MAX_HOST_LEN 256
 #define PLUM_MAX_ADDRESS_LEN 64
 
 typedef struct {
 	plum_ip_protocol_t protocol;
+	plum_mapping_protocol_t mapping_protocol;
 	uint16_t internal_port;
 	uint16_t external_port;
 	char external_host[PLUM_MAX_HOST_LEN];
