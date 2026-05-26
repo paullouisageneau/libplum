@@ -558,6 +558,7 @@ int pcp_impl_check_epoch_time(pcp_impl_t *impl, uint32_t curr_server_time) {
 	// ... If this is the first PCP response the client has received from this PCP server, the Epoch
 	// Time value is treated as necessarily valid
 	if (!impl->has_prev_server_time) {
+		impl->has_prev_server_time = true;
 		is_valid = true;
 	}
 	// ... If the current PCP server Epoch time (curr_server_time) is less than the previously

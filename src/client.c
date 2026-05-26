@@ -101,7 +101,6 @@ client_t *client_create(void) {
 
 	memset(client->mappings, 0, DEFAULT_MAPPINGS_SIZE * sizeof(client_mapping_t));
 	client->mappings_size = DEFAULT_MAPPINGS_SIZE;
-
 	mutex_init(&client->mappings_mutex, MUTEX_RECURSIVE); // so the user call the API from callbacks
 	mutex_init(&client->protocol_mutex, 0);
 
@@ -356,6 +355,12 @@ void client_run(client_t *client) {
 					break;
 				}
 				PLUM_LOG_DEBUG("Mappings are marked for destruction, continuing");
+			}
+
+			if (protocol_num == PROTOCOL_NOPROTOCOL && !atomic_load(&client->is_stopping)) {
+				PLUM_LOG_DEBUG("NOPROTOCOL cycle done, retrying discovery");
+				reset_protocol(client);
+				protocol_num = 0;
 			}
 			continue;
 		}

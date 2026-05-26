@@ -233,7 +233,7 @@ int natpmp_impl_check_epoch_time(pcp_impl_t *impl, uint32_t curr_server_time) {
 	// from the gateway and adding 7/8 (87.5%) of the time elapsed according to the client's local
 	// clock since that packet was received.
 	uint32_t elapsed = curr_client_time - impl->prev_client_time;
-	uint32_t estimated_server_time = curr_server_time + elapsed - elapsed / 8;
+	uint32_t estimated_server_time = impl->prev_server_time + elapsed - elapsed / 8;
 
 	impl->prev_client_time = curr_client_time;
 	impl->prev_server_time = curr_server_time;
