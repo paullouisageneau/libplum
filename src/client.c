@@ -307,6 +307,17 @@ static void reset_protocol(client_t *client) {
 	mutex_unlock(&client->mappings_mutex);
 }
 
+static void destroy_all_mappings(client_t *client) {
+	mutex_lock(&client->mappings_mutex);
+	for (int i = 0; i < client->mappings_size; ++i) {
+		client_mapping_t *cm = client->mappings + i;
+		// An empty slot has state PLUM_STATE_DESTROYED (== 0), so this skips it too
+		if (cm->state != PLUM_STATE_DESTROYED)
+			destroy_mapping(cm, i);
+	}
+	mutex_unlock(&client->mappings_mutex);
+}
+
 void client_run(client_t *client) {
 	PLUM_LOG_DEBUG("Starting client thread");
 	mutex_lock(&client->protocol_mutex);
@@ -397,6 +408,7 @@ void client_run(client_t *client) {
 	}
 
 	reset_protocol(client);
+	destroy_all_mappings(client);
 
 	PLUM_LOG_DEBUG("Exiting client thread");
 	mutex_unlock(&client->protocol_mutex);
