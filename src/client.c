@@ -264,8 +264,11 @@ static bool has_destroying_mappings(client_t *client) {
 	mutex_lock(&client->mappings_mutex);
 	for (int i = 0; i < client->mappings_size; ++i) {
 		client_mapping_t *cm = client->mappings + i;
-		if (cm->state == PLUM_STATE_DESTROYING)
+		if (cm->state == PLUM_STATE_DESTROYING) {
+			// Must unlock before the early return, otherwise the mutex stays held
+			mutex_unlock(&client->mappings_mutex);
 			return true;
+		}
 	}
 	mutex_unlock(&client->mappings_mutex);
 	return false;
@@ -335,6 +338,8 @@ void client_run(client_t *client) {
 			err = client->protocol->init(&client->protocol_state);
 			if (err != PROTOCOL_ERR_SUCCESS) {
 				client->protocol = NULL;
+			} else {
+				client->protocol_state.recheck_period = client->recheck_period;
 			}
 		}
 
@@ -357,7 +362,10 @@ void client_run(client_t *client) {
 				PLUM_LOG_DEBUG("Mappings are marked for destruction, continuing");
 			}
 
-			if (protocol_num == PROTOCOL_NOPROTOCOL && !atomic_load(&client->is_stopping)) {
+			// Only retry discovery for a real NAT fallback, not for a stable public address
+			// (otherwise reset_protocol churns the mappings every cycle)
+			if (protocol_num == PROTOCOL_NOPROTOCOL && !atomic_load(&client->is_stopping) &&
+			    !addr_is_public((const struct sockaddr *)&local)) {
 				PLUM_LOG_DEBUG("NOPROTOCOL cycle done, retrying discovery");
 				reset_protocol(client);
 				protocol_num = 0;
