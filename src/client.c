@@ -255,7 +255,11 @@ static void update_mapping(client_mapping_t *cm, int i, plum_state_t state,
 
 static void destroy_mapping(client_mapping_t *cm, int i) {
 	memset(&cm->external_addr, 0, sizeof(cm->external_addr));
-	update_mapping(cm, i, PLUM_STATE_DESTROYED, NULL);
+	// Do not call update_mapping here: it skips mappings already in DESTROYING.
+	// We need to notify the caller of destroyed state in order
+	// to provide a way to cleanup.
+	cm->state = PLUM_STATE_DESTROYED;
+	trigger_mapping_callback(cm, i);
 	free(cm->impl_record);
 	memset(cm, 0, sizeof(*cm));
 }
