@@ -53,6 +53,7 @@ typedef enum {
 
 typedef void (*plum_log_callback_t)(plum_log_level_t level, const char *message);
 
+// Must be zero-initialized (e.g. plum_config_t config = {0}); unset fields fall back to defaults.
 typedef struct {
 	plum_log_level_t log_level;
 	plum_log_callback_t log_callback; // NULL means stdout
