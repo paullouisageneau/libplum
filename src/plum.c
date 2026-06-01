@@ -22,6 +22,9 @@ PLUM_EXPORT int plum_init(const plum_config_t *config) {
 	if (client)
 		return PLUM_ERR_FAILED;
 
+	if (!config)
+		return PLUM_ERR_INVALID;
+
 	plum_log_init();
 	plum_set_log_level(config->log_level);
 	plum_set_log_handler(config->log_callback);
