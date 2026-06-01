@@ -245,6 +245,8 @@ int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t
 	timediff_t remaining = end_timestamp - current_timestamp();
 	int mx = (int)(remaining / 1000);
 	if (mx < 1) mx = 1;
+	// UPnP Device Architecture: MX should not exceed 5 (devices clamp it anyway)
+	if (mx > 5) mx = 5;
 
 	char buffer[UPNP_BUFFER_SIZE];
 	int len = snprintf(buffer, UPNP_BUFFER_SIZE,
