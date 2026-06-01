@@ -5,4 +5,5 @@ build/
 *.so
 compile_commands.json
 tests
+example.out
 
