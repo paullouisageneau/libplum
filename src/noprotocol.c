@@ -52,7 +52,6 @@ int noprotocol_discover(protocol_state_t *state, timediff_t duration) {
 
 int noprotocol_map(protocol_state_t *state, const client_mapping_t *mapping,
                    protocol_map_output_t *output, timediff_t duration) {
-	(void)state;
 	(void)duration;
 	memset(output, 0, sizeof(*output));
 
@@ -66,7 +65,9 @@ int noprotocol_map(protocol_state_t *state, const client_mapping_t *mapping,
 			}
 
 			output->state = PROTOCOL_MAP_STATE_SUCCESS;
-			output->refresh_timestamp = current_timestamp() + CLIENT_RECHECK_PERIOD;
+			// Reachable directly, no port mapping was performed
+			output->mapping_protocol = PLUM_MAPPING_PROTOCOL_DIRECT;
+			output->refresh_timestamp = current_timestamp() + state->recheck_period;
 			output->external_addr = local;
 			addr_set_port((struct sockaddr *)&output->external_addr, mapping->internal_port);
 			return PROTOCOL_ERR_SUCCESS;
@@ -76,7 +77,7 @@ int noprotocol_map(protocol_state_t *state, const client_mapping_t *mapping,
 	}
 
 	output->state = PROTOCOL_MAP_STATE_FAILURE;
-	output->refresh_timestamp = current_timestamp() + CLIENT_RECHECK_PERIOD;
+	output->refresh_timestamp = current_timestamp() + state->recheck_period;
 	memset(&output->external_addr, 0, sizeof(output->external_addr));
 	return PROTOCOL_ERR_SUCCESS; // report mapping failure but keep running the protocol
 }

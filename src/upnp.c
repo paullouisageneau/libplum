@@ -153,6 +153,7 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 		if (err == PROTOCOL_ERR_SUCCESS) {
 			PLUM_LOG_DEBUG("Success mapping with UPnP");
 			output->state = PROTOCOL_MAP_STATE_SUCCESS;
+			output->mapping_protocol = PLUM_MAPPING_PROTOCOL_UPNP;
 			output->refresh_timestamp =
 			    current_timestamp() + (lifetime / 2) * 1000; // halfway expiry time
 			addr_set(AF_INET, impl->external_addr_str, external_port, &output->external_addr);
@@ -241,15 +242,21 @@ int upnp_impl_probe(upnp_impl_t *impl, addr_record_t *found_gateway, timestamp_t
 	char broadcast_str[ADDR_MAX_STRING_LEN];
 	addr_record_to_string(&broadcast, broadcast_str, ADDR_MAX_STRING_LEN);
 
+	timediff_t remaining = end_timestamp - current_timestamp();
+	int mx = (int)(remaining / 1000);
+	if (mx < 1) mx = 1;
+	// UPnP Device Architecture: MX should not exceed 5 (devices clamp it anyway)
+	if (mx > 5) mx = 5;
+
 	char buffer[UPNP_BUFFER_SIZE];
 	int len = snprintf(buffer, UPNP_BUFFER_SIZE,
 	                   "M-SEARCH * HTTP/1.1\r\n"
 	                   "HOST: %s\r\n"
 	                   "MAN: \"ssdp:discover\"\r\n"
-	                   "MX: 10\r\n"
+	                   "MX: %d\r\n"
 	                   "ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n"
 					   "\r\n",
-	                   broadcast_str);
+	                   broadcast_str, mx);
 
 	if (len <= 0 || len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to write SSDP message to buffer");
@@ -434,8 +441,8 @@ int upnp_impl_query_external_addr(upnp_impl_t *impl, timestamp_t end_timestamp) 
 
 	char header_buffer[UPNP_BUFFER_SIZE];
 	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
-                              "SOAPAction: urn:schemas-upnp-org:service:%s:%d#GetExternalIPAddress\r\n",
-                              impl->service, impl->version);
+	                          "SOAPAction: \"urn:schemas-upnp-org:service:%s:%d#GetExternalIPAddress\"\r\n",
+	                          impl->service, impl->version);
 	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request headers");
 		return PROTOCOL_ERR_UNKNOWN;
@@ -519,13 +526,13 @@ int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t exter
 
 	char header_buffer[UPNP_BUFFER_SIZE];
 	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
-                              "SOAPAction: urn:schemas-upnp-org:service:%s:%d#AddPortMapping\r\n",
-                              impl->service, impl->version);
+	                          "SOAPAction: \"urn:schemas-upnp-org:service:%s:%d#AddPortMapping\"\r\n",
+	                          impl->service, impl->version);
 	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request headers");
 		return PROTOCOL_ERR_UNKNOWN;
 	}
-    request.headers = header_buffer;
+	request.headers = header_buffer;
 
 	char body_buffer[UPNP_BUFFER_SIZE];
 	int body_len = snprintf(body_buffer, UPNP_BUFFER_SIZE,
@@ -602,13 +609,13 @@ int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t ext
 
 	char header_buffer[UPNP_BUFFER_SIZE];
 	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
-                              "SOAPAction: urn:schemas-upnp-org:service:%s:%d#DeletePortMapping\r\n",
-                              impl->service, impl->version);
+	                          "SOAPAction: \"urn:schemas-upnp-org:service:%s:%d#DeletePortMapping\"\r\n",
+	                          impl->service, impl->version);
 	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
 		PLUM_LOG_ERROR("Failed to format SOAP request headers");
 		return PROTOCOL_ERR_UNKNOWN;
 	}
-    request.headers = header_buffer;
+	request.headers = header_buffer;
 
 	char body_buffer[UPNP_BUFFER_SIZE];
 	int body_len = snprintf(body_buffer, UPNP_BUFFER_SIZE,

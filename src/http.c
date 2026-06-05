@@ -44,6 +44,10 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 		return ret;
 	}
 
+	// Keep the original "host[:port]" string for the Host header before stripping the port
+	char host_header[HTTP_MAX_HOST_LEN];
+	memcpy(host_header, host, host_len + 1);
+
 	const char *service;
 	char *separator = strchr(host, ':');
 	if (separator) {
@@ -93,7 +97,7 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 		               "Content-Length: %zu\r\n"
 		               "Content-Type: %s\r\n"
 		               "%s\r\n",
-		               method_str, *path != '\0' ? path : "/", host, request->body_size,
+		               method_str, *path != '\0' ? path : "/", host_header, request->body_size,
 		               request->body_type, request->headers ? request->headers : "");
 	else
 		len = snprintf(buffer, size,
@@ -101,7 +105,7 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 		               "Host: %s\r\n"
 		               "Connection: close\r\n"
 		               "%s\r\n",
-		               method_str, *path != '\0' ? path : "/", host,
+		               method_str, *path != '\0' ? path : "/", host_header,
 		               request->headers ? request->headers : "");
 
 	if (len < 0 || (size_t)len >= size) {
@@ -166,14 +170,21 @@ static int http_perform_rec(const http_request_t *request, http_response_t *resp
 	PLUM_LOG_VERBOSE("Received HTTP response: %s", buffer);
 
 	int code = 0;
-	if (sscanf(buffer, "HTTP/%*s %d %*s\n%n", &code, &len) != 1 || code <= 0) {
+	// Status line: "HTTP/<version> <code> [reason]". Only the code is needed;
+	// the reason phrase may contain spaces and is ignored.
+	if (sscanf(buffer, "HTTP/%*s %d", &code) != 1 || code <= 0) {
 		PLUM_LOG_WARN("Failed to parse HTTP response status");
 		goto error;
 	}
 
 	PLUM_LOG_DEBUG("Got HTTP response code %d", code);
 
-	char *headers_begin = buffer + len;
+	char *headers_begin = strstr(buffer, "\r\n");
+	if (!headers_begin) {
+		PLUM_LOG_WARN("Failed to parse HTTP response status");
+		goto error;
+	}
+	headers_begin += 2;
 	char *headers_end = strstr(headers_begin, "\r\n\r\n");
 	if (!headers_end) {
 		PLUM_LOG_WARN("Failed to parse HTTP response headers");

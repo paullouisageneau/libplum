@@ -15,6 +15,8 @@
 typedef struct {
 	addr_record_t gateway;
 	void *impl;
+	// Configured recheck period, used by the no-protocol fallback for its refresh delay
+	timediff_t recheck_period;
 } protocol_state_t;
 
 struct client_mapping;
@@ -39,6 +41,7 @@ typedef enum {
 
 typedef struct {
 	protocol_map_state_t state;
+	plum_mapping_protocol_t mapping_protocol;
 	addr_record_t external_addr;
 	timestamp_t refresh_timestamp;
 	void *impl_record;

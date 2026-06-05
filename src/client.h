@@ -21,6 +21,7 @@
 
 typedef struct client_mapping {
 	plum_ip_protocol_t protocol;
+	plum_mapping_protocol_t mapping_protocol;
 	uint16_t internal_port;
 	addr_record_t suggested_addr;
 	addr_record_t external_addr;
@@ -41,6 +42,9 @@ typedef struct {
 	bool is_started;
 	atomic(bool) is_stopping;
 	thread_t thread;
+	timediff_t discover_timeout;
+	timediff_t mapping_timeout;
+	timediff_t recheck_period;
 } client_t;
 
 client_t *client_create(void);

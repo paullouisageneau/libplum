@@ -53,10 +53,14 @@ typedef enum {
 
 typedef void (*plum_log_callback_t)(plum_log_level_t level, const char *message);
 
+// Must be zero-initialized (e.g. plum_config_t config = {0}); unset fields fall back to defaults.
 typedef struct {
 	plum_log_level_t log_level;
 	plum_log_callback_t log_callback; // NULL means stdout
 	const char *dummytls_domain;      // NULL means disabled
+	int discover_timeout; // msecs, 0 means use default (10000)
+	int mapping_timeout;  // msecs, 0 means use default (10000)
+	int recheck_period;   // msecs, 0 means use default (300000)
 } plum_config_t;
 
 PLUM_EXPORT int plum_init(const plum_config_t *config);
@@ -75,18 +79,27 @@ typedef enum {
 	PLUM_STATE_DESTROYING = 4
 } plum_state_t;
 
+typedef enum {
+	PLUM_MAPPING_PROTOCOL_UNKNOWN = 0,
+	PLUM_MAPPING_PROTOCOL_PCP = 1,
+	PLUM_MAPPING_PROTOCOL_NATPMP = 2,
+	PLUM_MAPPING_PROTOCOL_UPNP = 3,
+	PLUM_MAPPING_PROTOCOL_DIRECT = 4
+} plum_mapping_protocol_t;
+
 #define PLUM_MAX_HOST_LEN 256
 #define PLUM_MAX_ADDRESS_LEN 64
 
 typedef struct {
 	plum_ip_protocol_t protocol;
+	plum_mapping_protocol_t mapping_protocol;
 	uint16_t internal_port;
 	uint16_t external_port;
 	char external_host[PLUM_MAX_HOST_LEN];
 	void *user_ptr;
 } plum_mapping_t;
 
-// Callback will be called on SUCCESS and FAILURE
+// Callback will be called on SUCCESS, FAILURE, and DESTROYED
 typedef void (*plum_mapping_callback_t)(int id, plum_state_t state, const plum_mapping_t *mapping);
 
 PLUM_EXPORT int plum_create_mapping(const plum_mapping_t *mapping,

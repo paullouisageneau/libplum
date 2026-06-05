@@ -58,6 +58,7 @@ static void import_mapping(const plum_mapping_t *mapping, plum_mapping_callback_
 static void export_mapping(const client_mapping_t *cm, plum_mapping_t *mapping) {
 	memset(mapping, 0, sizeof(*mapping));
 	mapping->protocol = cm->protocol;
+	mapping->mapping_protocol = cm->mapping_protocol;
 	mapping->internal_port = cm->internal_port;
 	mapping->user_ptr = cm->user_ptr;
 	if (cm->external_addr.len > 0) {
@@ -100,7 +101,6 @@ client_t *client_create(void) {
 
 	memset(client->mappings, 0, DEFAULT_MAPPINGS_SIZE * sizeof(client_mapping_t));
 	client->mappings_size = DEFAULT_MAPPINGS_SIZE;
-
 	mutex_init(&client->mappings_mutex, MUTEX_RECURSIVE); // so the user call the API from callbacks
 	mutex_init(&client->protocol_mutex, 0);
 
@@ -234,7 +234,7 @@ static void trigger_mapping_callback(const client_mapping_t *cm, int i) {
 
 static void update_mapping(client_mapping_t *cm, int i, plum_state_t state,
                            const addr_record_t *external) {
-	if (cm->state == PLUM_STATE_DESTROYED || cm->state == PLUM_STATE_DESTROYING)
+	if (cm->state == PLUM_STATE_DESTROYED)
 		return;
 
 	bool changed = false;
@@ -264,8 +264,11 @@ static bool has_destroying_mappings(client_t *client) {
 	mutex_lock(&client->mappings_mutex);
 	for (int i = 0; i < client->mappings_size; ++i) {
 		client_mapping_t *cm = client->mappings + i;
-		if (cm->state == PLUM_STATE_DESTROYING)
+		if (cm->state == PLUM_STATE_DESTROYING) {
+			// Must unlock before the early return, otherwise the mutex stays held
+			mutex_unlock(&client->mappings_mutex);
 			return true;
+		}
 	}
 	mutex_unlock(&client->mappings_mutex);
 	return false;
@@ -296,6 +299,17 @@ static void reset_protocol(client_t *client) {
 			destroy_mapping(cm, i); // as good as destroyed now
 		else
 			update_mapping(cm, i, PLUM_STATE_PENDING, NULL);
+	}
+	mutex_unlock(&client->mappings_mutex);
+}
+
+static void destroy_all_mappings(client_t *client) {
+	mutex_lock(&client->mappings_mutex);
+	for (int i = 0; i < client->mappings_size; ++i) {
+		client_mapping_t *cm = client->mappings + i;
+		// An empty slot has state PLUM_STATE_DESTROYED (== 0), so this skips it too
+		if (cm->state != PLUM_STATE_DESTROYED)
+			destroy_mapping(cm, i);
 	}
 	mutex_unlock(&client->mappings_mutex);
 }
@@ -335,13 +349,15 @@ void client_run(client_t *client) {
 			err = client->protocol->init(&client->protocol_state);
 			if (err != PROTOCOL_ERR_SUCCESS) {
 				client->protocol = NULL;
+			} else {
+				client->protocol_state.recheck_period = client->recheck_period;
 			}
 		}
 
 		if (err == PROTOCOL_ERR_SUCCESS) {
 			mutex_unlock(&client->protocol_mutex);
 			err = client_run_protocol(client, client->protocol, &client->protocol_state,
-			                          CLIENT_RECHECK_PERIOD);
+			                          client->recheck_period);
 			mutex_lock(&client->protocol_mutex);
 		}
 
@@ -355,6 +371,15 @@ void client_run(client_t *client) {
 					break;
 				}
 				PLUM_LOG_DEBUG("Mappings are marked for destruction, continuing");
+			}
+
+			// Only retry discovery for a real NAT fallback, not for a stable public address
+			// (otherwise reset_protocol churns the mappings every cycle)
+			if (protocol_num == PROTOCOL_NOPROTOCOL && !atomic_load(&client->is_stopping) &&
+			    !addr_is_public((const struct sockaddr *)&local)) {
+				PLUM_LOG_DEBUG("Retrying discovery");
+				reset_protocol(client);
+				protocol_num = 0;
 			}
 			continue;
 		}
@@ -379,6 +404,7 @@ void client_run(client_t *client) {
 	}
 
 	reset_protocol(client);
+	destroy_all_mappings(client);
 
 	PLUM_LOG_DEBUG("Exiting client thread");
 	mutex_unlock(&client->protocol_mutex);
@@ -388,7 +414,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
                         protocol_state_t *protocol_state, timediff_t duration) {
 	timestamp_t end_timestamp = current_timestamp() + duration;
 
-	int err = protocol->discover(protocol_state, CLIENT_MAX_DISCOVER_TIMEOUT);
+	int err = protocol->discover(protocol_state, client->discover_timeout);
 	if (err != PROTOCOL_ERR_SUCCESS)
 		return err;
 
@@ -415,7 +441,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 			if (mapping.state == PLUM_STATE_DESTROYING) {
 				PLUM_LOG_INFO("Performing unmapping for internal port %hu", mapping.internal_port);
 
-				err = protocol->unmap(protocol_state, &mapping, CLIENT_MAX_MAPPING_TIMEOUT);
+				err = protocol->unmap(protocol_state, &mapping, client->mapping_timeout);
 				if (err != PROTOCOL_ERR_SUCCESS)
 					return err;
 
@@ -430,7 +456,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 				PLUM_LOG_INFO("Performing mapping for internal port %hu", mapping.internal_port);
 
 				protocol_map_output_t output;
-				err = protocol->map(protocol_state, &mapping, &output, CLIENT_MAX_MAPPING_TIMEOUT);
+				err = protocol->map(protocol_state, &mapping, &output, client->mapping_timeout);
 				if (err != PROTOCOL_ERR_SUCCESS)
 					return err;
 
@@ -456,6 +482,7 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 				free(cm->impl_record);
 				cm->impl_record = output.impl_record;
 				cm->refresh_timestamp = output.refresh_timestamp;
+				cm->mapping_protocol = output.mapping_protocol;
 
 				if (cm->state != PLUM_STATE_DESTROYING) { // mapping might have been destroyed
 					if (output.state == PROTOCOL_MAP_STATE_SUCCESS) {
@@ -479,8 +506,8 @@ int client_run_protocol(client_t *client, const protocol_t *protocol,
 		timestamp_t now = current_timestamp();
 		if (now < next_timestamp) {
 			timediff_t diff = next_timestamp - now;
-			if (diff > CLIENT_RECHECK_PERIOD)
-				diff = CLIENT_RECHECK_PERIOD;
+			if (diff > client->recheck_period)
+				diff = client->recheck_period;
 
 			err = protocol->idle(protocol_state, diff);
 			if (err != PROTOCOL_ERR_SUCCESS && err != PROTOCOL_ERR_TIMEOUT)
