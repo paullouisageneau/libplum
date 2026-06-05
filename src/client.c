@@ -234,7 +234,7 @@ static void trigger_mapping_callback(const client_mapping_t *cm, int i) {
 
 static void update_mapping(client_mapping_t *cm, int i, plum_state_t state,
                            const addr_record_t *external) {
-	if (cm->state == PLUM_STATE_DESTROYED || cm->state == PLUM_STATE_DESTROYING)
+	if (cm->state == PLUM_STATE_DESTROYED)
 		return;
 
 	bool changed = false;
@@ -255,11 +255,7 @@ static void update_mapping(client_mapping_t *cm, int i, plum_state_t state,
 
 static void destroy_mapping(client_mapping_t *cm, int i) {
 	memset(&cm->external_addr, 0, sizeof(cm->external_addr));
-	// Do not call update_mapping here: it skips mappings already in DESTROYING.
-	// We need to notify the caller of destroyed state in order
-	// to provide a way to cleanup.
-	cm->state = PLUM_STATE_DESTROYED;
-	trigger_mapping_callback(cm, i);
+	update_mapping(cm, i, PLUM_STATE_DESTROYED, NULL);
 	free(cm->impl_record);
 	memset(cm, 0, sizeof(*cm));
 }
@@ -381,7 +377,7 @@ void client_run(client_t *client) {
 			// (otherwise reset_protocol churns the mappings every cycle)
 			if (protocol_num == PROTOCOL_NOPROTOCOL && !atomic_load(&client->is_stopping) &&
 			    !addr_is_public((const struct sockaddr *)&local)) {
-				PLUM_LOG_DEBUG("NOPROTOCOL cycle done, retrying discovery");
+				PLUM_LOG_DEBUG("Retrying discovery");
 				reset_protocol(client);
 				protocol_num = 0;
 			}
