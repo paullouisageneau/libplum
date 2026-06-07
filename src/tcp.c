@@ -68,7 +68,7 @@ socket_t tcp_connect_socket(const addr_record_t *remote_addr, timestamp_t end_ti
 		goto error;
 	}
 
-	if (!(pfd.revents & POLLOUT)) {
+	if (!(pfd.revents & POLLOUT || pfd.revents & POLLERR)) {
 		PLUM_LOG_ERROR("TCP connection timed out");
 		goto error;
 	}
@@ -119,12 +119,12 @@ int tcp_recv(socket_t sock, char *buffer, size_t size, timestamp_t end_timestamp
 		if (ret == 0) // timeout
 			break;
 
-		if (pfd.revents & POLLNVAL || pfd.revents & POLLERR) {
-			PLUM_LOG_ERROR("Error when polling socket");
+		if (pfd.revents & POLLNVAL) {
+			PLUM_LOG_ERROR("Invalid socket");
 			return TCP_ERR_UNKNOWN;
 		}
 
-		if (pfd.revents & POLLIN || pfd.revents & POLLHUP) {
+		if (pfd.revents & POLLIN || pfd.revents & POLLHUP || pfd.revents & POLLERR) {
 #if defined(__APPLE__) || defined(_WIN32)
 			int flags = 0;
 #else
@@ -173,12 +173,12 @@ int tcp_send(socket_t sock, const char *data, size_t size, timestamp_t end_times
 		if (ret == 0)
 			break;
 
-		if (pfd.revents & POLLNVAL || pfd.revents & POLLERR) {
-			PLUM_LOG_ERROR("Error when polling socket");
+		if (pfd.revents & POLLNVAL) {
+			PLUM_LOG_ERROR("Invalid socket");
 			return TCP_ERR_UNKNOWN;
 		}
 
-		if (pfd.revents & POLLOUT) {
+		if (pfd.revents & POLLOUT || pfd.revents & POLLERR) {
 #if defined(__APPLE__) || defined(_WIN32)
 			int flags = 0;
 #else
