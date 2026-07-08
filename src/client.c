@@ -74,7 +74,24 @@ thread_return_t THREAD_CALL client_thread_entry(void *arg) {
 	return (thread_return_t)0;
 }
 
-client_t *client_create(void) {
+// NOPROTOCOL is always enabled as the terminal fallback
+static bool protocol_is_enabled(const client_t *client, int protocol_num) {
+	if (protocol_num == PROTOCOL_NOPROTOCOL)
+		return true;
+	if (client->protocol_filter == PLUM_PROTOCOL_PCP)
+		return protocol_num == PROTOCOL_PCP;
+	if (client->protocol_filter == PLUM_PROTOCOL_UPNP)
+		return protocol_num == PROTOCOL_UPNP;
+	return true; // PLUM_PROTOCOL_ANY
+}
+
+static int next_protocol_num(const client_t *client, int protocol_num) {
+	while (protocol_num < PROTOCOLS_COUNT && !protocol_is_enabled(client, protocol_num))
+		++protocol_num;
+	return protocol_num;
+}
+
+client_t *client_create(plum_protocol_t protocol_filter) {
 	PLUM_LOG_DEBUG("Creating client");
 
 #ifdef _WIN32
@@ -101,6 +118,7 @@ client_t *client_create(void) {
 
 	memset(client->mappings, 0, DEFAULT_MAPPINGS_SIZE * sizeof(client_mapping_t));
 	client->mappings_size = DEFAULT_MAPPINGS_SIZE;
+	client->protocol_filter = protocol_filter;
 	mutex_init(&client->mappings_mutex, MUTEX_RECURSIVE); // so the user call the API from callbacks
 	mutex_init(&client->protocol_mutex, 0);
 
@@ -320,7 +338,7 @@ void client_run(client_t *client) {
 
 	addr_record_t old_local;
 	memset(&old_local, 0, sizeof(old_local));
-	int protocol_num = 0;
+	int protocol_num = next_protocol_num(client, 0);
 	while (true) {
 		addr_record_t local;
 		if (net_get_default_interface(AF_INET, &local) < 0) {
@@ -333,7 +351,7 @@ void client_run(client_t *client) {
 		if (changed) {
 			PLUM_LOG_INFO("Local address changed, restarting");
 			reset_protocol(client);
-			protocol_num = 0;
+			protocol_num = next_protocol_num(client, 0);
 		}
 
 		if (protocol_num != PROTOCOL_NOPROTOCOL &&
@@ -379,7 +397,7 @@ void client_run(client_t *client) {
 			    !addr_is_public((const struct sockaddr *)&local)) {
 				PLUM_LOG_DEBUG("Retrying discovery");
 				reset_protocol(client);
-				protocol_num = 0;
+				protocol_num = next_protocol_num(client, 0);
 			}
 			continue;
 		}
@@ -396,7 +414,7 @@ void client_run(client_t *client) {
 
 		PLUM_LOG_DEBUG("Protocol failed");
 
-		++protocol_num;
+		protocol_num = next_protocol_num(client, protocol_num + 1);
 		if (protocol_num >= PROTOCOLS_COUNT) {
 			PLUM_LOG_FATAL("Client failed, exiting");
 			break;

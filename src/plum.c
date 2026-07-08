@@ -35,7 +35,7 @@ PLUM_EXPORT int plum_init(const plum_config_t *config) {
 	if (config->dummytls_domain)
 		dummytls_set_domain(config->dummytls_domain);
 
-	client = client_create();
+	client = client_create(config->protocol);
 	if (!client)
 		return PLUM_ERR_FAILED;
 
