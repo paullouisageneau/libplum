@@ -38,6 +38,7 @@ typedef struct {
 	mutex_t mappings_mutex;
 	const protocol_t *protocol;
 	protocol_state_t protocol_state;
+	plum_protocol_t protocol_filter;
 	mutex_t protocol_mutex;
 	bool is_started;
 	atomic(bool) is_stopping;
@@ -47,7 +48,7 @@ typedef struct {
 	timediff_t recheck_period;
 } client_t;
 
-client_t *client_create(void);
+client_t *client_create(plum_protocol_t protocol_filter);
 void client_destroy(client_t *client);
 int client_start(client_t *client);
 int client_add_mapping(client_t *client, const plum_mapping_t *mapping,

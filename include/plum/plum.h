@@ -53,6 +53,12 @@ typedef enum {
 
 typedef void (*plum_log_callback_t)(plum_log_level_t level, const char *message);
 
+typedef enum {
+	PLUM_PROTOCOL_ANY = 0, // try all protocols (default)
+	PLUM_PROTOCOL_PCP = 1, // PCP/NAT-PMP only
+	PLUM_PROTOCOL_UPNP = 2 // UPnP only
+} plum_protocol_t;
+
 // Must be zero-initialized (e.g. plum_config_t config = {0}); unset fields fall back to defaults.
 typedef struct {
 	plum_log_level_t log_level;
@@ -61,6 +67,7 @@ typedef struct {
 	int discover_timeout; // msecs, 0 means use default (10000)
 	int mapping_timeout;  // msecs, 0 means use default (10000)
 	int recheck_period;   // msecs, 0 means use default (300000)
+	plum_protocol_t protocol; // PLUM_PROTOCOL_ANY means try all
 } plum_config_t;
 
 PLUM_EXPORT int plum_init(const plum_config_t *config);
