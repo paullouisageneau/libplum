@@ -5,7 +5,8 @@
 
 libplum (_Port Lightweight and Universal Mapping_) is a high-level library allowing to forward ports on Network Address Translators (NAT). It is written in C without dependencies and supports multiple platforms, including GNU/Linux, Android, Apple macOS, iOS, and Microsoft Windows.
 
-libplum has Node.js bindings, see [node-portmapping](https://github.com/paullouisageneau/node-portmapping).
+libplum has Node.js bindings, see [node-portmapping](https://github.com/paullouisageneau/node-portmapping).  
+A Nim bindings is also available, see [nim-libplum](https://github.com/logos-storage/nim-libplum).
 
 Under the hood, it implements multiple protocols and automatically detects which one to use:
 
