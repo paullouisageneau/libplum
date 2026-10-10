@@ -154,8 +154,11 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 			PLUM_LOG_DEBUG("Success mapping with UPnP");
 			output->state = PROTOCOL_MAP_STATE_SUCCESS;
 			output->mapping_protocol = PLUM_MAPPING_PROTOCOL_UPNP;
-			output->refresh_timestamp =
-			    current_timestamp() + (lifetime / 2) * 1000; // halfway expiry time
+			if (lifetime > 0)
+				output->refresh_timestamp =
+				    current_timestamp() + (lifetime / 2) * 1000; // halfway expiry time
+			else // permanent, nothing to renew
+				output->refresh_timestamp = current_timestamp() + state->recheck_period;
 			addr_set(AF_INET, impl->external_addr_str, external_port, &output->external_addr);
 			return PROTOCOL_ERR_SUCCESS;
 
@@ -166,7 +169,7 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 				external_port = random_port();
 				break;
 			case 725: // The NAT implementation only supports permanent lease times on port mapping
-				duration = 0;
+				lifetime = 0;
 				break;
 			case 729: // Attempted port mapping is not allowed due to conflict with other mechanisms
 				// NAT port mapping rules can be created by other mechanisms besides UPnP IGD.
