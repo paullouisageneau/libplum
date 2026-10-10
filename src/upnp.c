@@ -200,7 +200,12 @@ int upnp_unmap(protocol_state_t *state, const client_mapping_t *mapping, timedif
 	if (external_port == 0)
 		return PROTOCOL_ERR_SUCCESS; // Nothing to do
 
-	return upnp_impl_unmap(impl, mapping->protocol, external_port, end_timestamp);
+	int err = upnp_impl_unmap(impl, mapping->protocol, external_port, end_timestamp);
+	if (err == 714) { // NoSuchEntryInArray: the gateway lost it already, after a restart for instance
+		PLUM_LOG_DEBUG("UPnP mapping was already gone");
+		return PROTOCOL_ERR_SUCCESS;
+	}
+	return err;
 }
 
 int upnp_idle(protocol_state_t *state, timediff_t duration) {
