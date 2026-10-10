@@ -15,6 +15,7 @@
 #include "util.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -139,6 +140,60 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 			external_port = random_port();
 	}
 
+	// A mapping made before is checked, and left untouched while it is still ours: a gateway
+	// that restarted meanwhile has lost it, and it is made again at once instead of at the next
+	// renewal. Only the renewal itself, or a mapping found missing, sends AddPortMapping again.
+	const upnp_mapping_record_t *record = mapping->impl_record;
+	if (record && mapping->external_addr.len > 0 && current_timestamp() < record->renew_timestamp) {
+		addr_record_t local;
+		if (net_get_default_interface(AF_INET, &local)) {
+			PLUM_LOG_ERROR("Unable to get default interface address");
+			return PROTOCOL_ERR_UNKNOWN;
+		}
+		char local_str[ADDR_MAX_STRING_LEN];
+		addr_record_to_string(&local, local_str, ADDR_MAX_STRING_LEN);
+
+		timestamp_t query_end_timestamp = current_timestamp() + UPNP_QUERY_TIMEOUT;
+		if (query_end_timestamp > end_timestamp)
+			query_end_timestamp = end_timestamp;
+
+		PLUM_LOG_DEBUG("Checking UPnP mapping...");
+		char internal_client[ADDR_MAX_STRING_LEN];
+		uint16_t internal_port = 0;
+		int err = upnp_impl_query_mapping(impl, mapping->protocol, external_port, internal_client,
+		                                  ADDR_MAX_STRING_LEN, &internal_port, query_end_timestamp);
+		if (err == PROTOCOL_ERR_TIMEOUT || err == PROTOCOL_ERR_NETWORK_FAILED ||
+		    err == PROTOCOL_ERR_INTERRUPTED)
+			return err; // the gateway is not answering: mapping again would not do better
+		// otherwise the answer, even an unexpected one, is no proof the mapping is still ours
+
+		if (err == PROTOCOL_ERR_SUCCESS && internal_port == mapping->internal_port &&
+		    strcmp(internal_client, local_str) == 0) {
+			PLUM_LOG_DEBUG("UPnP mapping is still in place");
+			upnp_mapping_record_t *new_record = malloc(sizeof(upnp_mapping_record_t));
+			if (!new_record) {
+				PLUM_LOG_ERROR("Allocation for UPnP mapping record failed");
+				return PROTOCOL_ERR_INSUFF_RESOURCES;
+			}
+			*new_record = *record;
+			output->state = PROTOCOL_MAP_STATE_SUCCESS;
+			output->mapping_protocol = PLUM_MAPPING_PROTOCOL_UPNP;
+			output->refresh_timestamp = current_timestamp() + state->recheck_period;
+			if (output->refresh_timestamp > record->renew_timestamp)
+				output->refresh_timestamp = record->renew_timestamp;
+			output->impl_record = new_record;
+			addr_set(AF_INET, impl->external_addr_str, external_port, &output->external_addr);
+			return PROTOCOL_ERR_SUCCESS;
+		}
+
+		if (err == PROTOCOL_ERR_SUCCESS)
+			PLUM_LOG_INFO("UPnP mapping for external port %hu now goes to %s:%hu, mapping again",
+			              external_port, internal_client, internal_port);
+		else
+			PLUM_LOG_INFO("UPnP mapping for external port %hu is gone (code=%d), mapping again",
+			              external_port, err);
+	}
+
 	int lifetime = 7200; // seconds
 
 	int query_count = 0;
@@ -152,13 +207,21 @@ int upnp_map(protocol_state_t *state, const client_mapping_t *mapping,
 		                        lifetime, query_end_timestamp);
 		if (err == PROTOCOL_ERR_SUCCESS) {
 			PLUM_LOG_DEBUG("Success mapping with UPnP");
+			upnp_mapping_record_t *new_record = malloc(sizeof(upnp_mapping_record_t));
+			if (!new_record) {
+				PLUM_LOG_ERROR("Allocation for UPnP mapping record failed");
+				return PROTOCOL_ERR_INSUFF_RESOURCES;
+			}
+			new_record->renew_timestamp =
+			    lifetime > 0 ? current_timestamp() + (lifetime / 2) * 1000 // halfway expiry time
+			                 : INT64_MAX;                                // permanent
 			output->state = PROTOCOL_MAP_STATE_SUCCESS;
 			output->mapping_protocol = PLUM_MAPPING_PROTOCOL_UPNP;
-			if (lifetime > 0)
-				output->refresh_timestamp =
-				    current_timestamp() + (lifetime / 2) * 1000; // halfway expiry time
-			else // permanent, nothing to renew
-				output->refresh_timestamp = current_timestamp() + state->recheck_period;
+			// checked every recheck period until then
+			output->refresh_timestamp = current_timestamp() + state->recheck_period;
+			if (output->refresh_timestamp > new_record->renew_timestamp)
+				output->refresh_timestamp = new_record->renew_timestamp;
+			output->impl_record = new_record;
 			addr_set(AF_INET, impl->external_addr_str, external_port, &output->external_addr);
 			return PROTOCOL_ERR_SUCCESS;
 
@@ -598,6 +661,95 @@ int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t exter
 		http_free(&response);
 		return error_code;
 	}
+
+	http_free(&response);
+	return PROTOCOL_ERR_SUCCESS;
+}
+
+int upnp_impl_query_mapping(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t external_port,
+                            char *internal_client, size_t internal_client_size,
+                            uint16_t *internal_port, timestamp_t end_timestamp) {
+	if (!impl->control_url) {
+		PLUM_LOG_ERROR("Attempted to query mapping with UPnP with unknown control URL");
+		return PROTOCOL_ERR_UNKNOWN;
+	}
+
+	http_request_t request;
+	memset(&request, 0, sizeof(request));
+	request.method = HTTP_METHOD_POST;
+	request.url = impl->control_url;
+
+	char header_buffer[UPNP_BUFFER_SIZE];
+	int header_len = snprintf(header_buffer, UPNP_BUFFER_SIZE,
+	                          "SOAPAction: \"urn:schemas-upnp-org:service:%s:%d#GetSpecificPortMappingEntry\"\r\n",
+	                          impl->service, impl->version);
+	if (header_len <= 0 || header_len >= UPNP_BUFFER_SIZE) {
+		PLUM_LOG_ERROR("Failed to format SOAP request headers");
+		return PROTOCOL_ERR_UNKNOWN;
+	}
+	request.headers = header_buffer;
+
+	char body_buffer[UPNP_BUFFER_SIZE];
+	int body_len = snprintf(body_buffer, UPNP_BUFFER_SIZE,
+	                        "<?xml version=\"1.0\"?>\r\n"
+	                        "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+	                        "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
+	                        "<s:Body>"
+	                        "<m:GetSpecificPortMappingEntry xmlns:m=\"urn:schemas-upnp-org:service:%s:%d\">"
+	                        "<NewRemoteHost></NewRemoteHost>"
+	                        "<NewExternalPort>%hu</NewExternalPort>"
+	                        "<NewProtocol>%s</NewProtocol>"
+	                        "</m:GetSpecificPortMappingEntry>"
+	                        "</s:Body>"
+	                        "</s:Envelope>\r\n",
+	                        impl->service, impl->version, external_port,
+	                        protocol == PLUM_IP_PROTOCOL_UDP ? "UDP" : "TCP");
+	if (body_len <= 0 || body_len >= UPNP_BUFFER_SIZE) {
+		PLUM_LOG_ERROR("Failed to format SOAP request body");
+		return PROTOCOL_ERR_UNKNOWN;
+	}
+	request.body = body_buffer;
+	request.body_size = body_len;
+	request.body_type = "text/xml; charset=\"utf-8\"";
+
+	http_response_t response;
+	memset(&response, 0, sizeof(response));
+	int ret = http_perform(&request, &response, end_timestamp);
+	if (ret < 0) {
+		if (ret == HTTP_ERR_TIMEOUT) {
+			PLUM_LOG_WARN("Timed-out sending HTTP request to UPnP-IGD device");
+			return PROTOCOL_ERR_TIMEOUT;
+		} else {
+			PLUM_LOG_WARN("Failed to send HTTP request to UPnP-IGD device");
+			return PROTOCOL_ERR_NETWORK_FAILED;
+		}
+	}
+
+	if (ret != 200) {
+		char error_code_buffer[10];
+		int error_code = 0;
+		if (xml_extract(response.body, "errorCode", error_code_buffer, 10) <= 0 ||
+		    (error_code = atoi(error_code_buffer)) <= 0) {
+			PLUM_LOG_WARN("Got unknown UPnP error");
+			http_free(&response);
+			return PROTOCOL_ERR_PROTOCOL_FAILED;
+		}
+
+		PLUM_LOG_DEBUG("Got UPnP error, code=%d", error_code); // 714 when there is no such mapping
+		http_free(&response);
+		return error_code;
+	}
+
+	char internal_port_buffer[10];
+	int internal_port_value = 0;
+	if (xml_extract(response.body, "NewInternalClient", internal_client, internal_client_size) <= 0 ||
+	    xml_extract(response.body, "NewInternalPort", internal_port_buffer, 10) <= 0 ||
+	    (internal_port_value = atoi(internal_port_buffer)) <= 0 || internal_port_value > 65535) {
+		PLUM_LOG_WARN("Missing or invalid mapping in UPnP response");
+		http_free(&response);
+		return PROTOCOL_ERR_PROTOCOL_FAILED;
+	}
+	*internal_port = (uint16_t)internal_port_value;
 
 	http_free(&response);
 	return PROTOCOL_ERR_SUCCESS;
