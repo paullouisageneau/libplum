@@ -105,6 +105,19 @@ PLUM_EXPORT int plum_destroy_mapping(int id) {
 	return PLUM_ERR_SUCCESS;
 }
 
+PLUM_EXPORT int plum_refresh_mapping(int id) {
+	if (!client)
+		return PLUM_ERR_FAILED;
+
+	if (id < 0)
+		return PLUM_ERR_INVALID;
+
+	if (client_refresh_mapping(client, id) < 0)
+		return PLUM_ERR_NOT_AVAIL;
+
+	return PLUM_ERR_SUCCESS;
+}
+
 PLUM_EXPORT int plum_get_local_address(char *buffer, size_t size) {
 	addr_record_t record;
 	if(net_get_default_interface(AF_INET, &record) < 0)
