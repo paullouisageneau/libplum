@@ -55,6 +55,7 @@ int client_add_mapping(client_t *client, const plum_mapping_t *mapping,
                        plum_mapping_callback_t callback);
 int client_get_mapping(client_t *client, int i, plum_state_t *state, plum_mapping_t *mapping);
 int client_remove_mapping(client_t *client, int i);
+int client_refresh_mapping(client_t *client, int i);
 void client_run(client_t *client);
 int client_run_protocol(client_t *client, const protocol_t *protocol,
                         protocol_state_t *protocol_state, timediff_t duration);

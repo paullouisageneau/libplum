@@ -113,6 +113,10 @@ PLUM_EXPORT int plum_create_mapping(const plum_mapping_t *mapping,
                                     plum_mapping_callback_t callback);
 PLUM_EXPORT int plum_query_mapping(int id, plum_state_t *state, plum_mapping_t *mapping);
 PLUM_EXPORT int plum_destroy_mapping(int id);
+// Check the mapping with the gateway now instead of at the next refresh, and make it again if it
+// is gone, without removing it first. With UPnP-IGD a mapping still in place is left untouched;
+// PCP and NAT-PMP renew it, which is how they check it. The callback is called on a change.
+PLUM_EXPORT int plum_refresh_mapping(int id);
 
 PLUM_EXPORT int plum_get_local_address(char *buffer, size_t size);
 

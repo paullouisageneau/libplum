@@ -243,6 +243,26 @@ int client_remove_mapping(client_t *client, int i) {
 	return 0;
 }
 
+int client_refresh_mapping(client_t *client, int i) {
+	mutex_lock(&client->mappings_mutex);
+
+	if (i >= client->mappings_size || client->mappings[i].state == PLUM_STATE_DESTROYED ||
+	    client->mappings[i].state == PLUM_STATE_DESTROYING) {
+		mutex_unlock(&client->mappings_mutex);
+		return -1;
+	}
+
+	client_mapping_t *cm = client->mappings + i;
+	cm->refresh_timestamp = 0; // due now
+
+	PLUM_LOG_INFO("Refreshing mapping %d for internal port %hu", i, cm->internal_port);
+
+	mutex_unlock(&client->mappings_mutex);
+
+	client_interrupt(client, false);
+	return 0;
+}
+
 static void trigger_mapping_callback(const client_mapping_t *cm, int i) {
 	plum_mapping_t mapping;
 	export_mapping(cm, &mapping);

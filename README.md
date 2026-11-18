@@ -57,6 +57,11 @@ mapping.user_ptr = NULL;
 int id = plum_create_mapping(&mapping, mapping_callback);
 ```
 
+### Check a mapping now, and make it again if the gateway lost it
+```c
+plum_refresh_mapping(id);
+```
+
 ### Destroy a mapping
 ```c
 plum_destroy_mapping(id);

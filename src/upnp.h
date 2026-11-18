@@ -37,6 +37,11 @@ typedef struct {
 	atomic(upnp_interrupt_t) interrupt;
 } upnp_impl_t;
 
+// Kept by the client along with each mapping made with UPnP
+typedef struct {
+	timestamp_t renew_timestamp; // when the lease must be renewed, never for a permanent one
+} upnp_mapping_record_t;
+
 int upnp_init(protocol_state_t *state);
 int upnp_cleanup(protocol_state_t *state);
 int upnp_discover(protocol_state_t *state, timediff_t duration);
@@ -52,6 +57,9 @@ int upnp_impl_query_control_url(upnp_impl_t *impl, timestamp_t end_timestamp);
 int upnp_impl_query_external_addr(upnp_impl_t *impl, timestamp_t end_timestamp);
 int upnp_impl_map(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t external_port,
                   uint16_t internal_port, unsigned int lifetime, timestamp_t end_timestamp);
+int upnp_impl_query_mapping(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t external_port,
+                            char *internal_client, size_t internal_client_size,
+                            uint16_t *internal_port, timestamp_t end_timestamp);
 int upnp_impl_unmap(upnp_impl_t *impl, plum_ip_protocol_t protocol, uint16_t external_port,
                     timestamp_t end_timestamp);
 
